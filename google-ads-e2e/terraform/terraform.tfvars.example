@@ -1,0 +1,17 @@
+# Google Cloud Project & Region
+project_id = ""
+region     = "us-central1"
+
+# OAuth 2.0 Web Client credentials (for FastMCP OAuth proxy)
+oauth_client_id     = "YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com"
+oauth_client_secret = "YOUR_OAUTH_CLIENT_SECRET"
+
+# Optional: Cloud Run base URL for FastMCP OAuth proxy redirect (can be set after first deploy)
+# base_url = "https://google-ads-mcp-xxxx-uc.a.run.app"
+
+# Optional: Google Ads API Developer Token (Sunset on Sept 9, 2026; no longer required)
+# google_ads_developer_token = ""
+
+# Optional: Google Ads Manager Account (MCC) Customer ID
+# google_ads_login_customer_id = "1234567890"
+
