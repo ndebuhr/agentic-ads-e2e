@@ -2,6 +2,9 @@
 import os
 from pathlib import Path
 
+from google.adk.models.google_llm import Gemini
+from google.genai import types
+
 SKILLS_DIR = Path(os.environ.get("ADS_AGENT_SKILLS_DIR", Path(__file__).resolve().parents[2] / ".agents" / "skills"))
 WORKSPACE = Path(os.path.expanduser(os.environ.get("ADS_AGENT_WORKSPACE", "."))).resolve()
 MODEL = os.environ.get("ADS_AGENT_MODEL", "gemini-3.8-flash")
@@ -9,3 +12,8 @@ GOOGLE_ADS_CONFIG = os.path.expanduser(os.environ.get("GOOGLE_ADS_CONFIGURATION_
 GENMEDIA_BIN_DIR = Path(os.path.expanduser(os.environ.get("GENMEDIA_BIN_DIR", "~/.local/bin")))
 GENMEDIA_BUCKET = os.environ.get("GENMEDIA_BUCKET")
 GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+
+
+def model() -> Gemini:
+    # Vertex returns 429 when shared capacity for a model is briefly exhausted; back off and retry.
+    return Gemini(model=MODEL, retry_options=types.HttpRetryOptions(attempts=6, initial_delay=2, max_delay=60, exp_base=2))

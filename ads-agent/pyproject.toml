@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "ADK agent that runs the .agents/skills Google Ads and ad creative skills"
 requires-python = ">=3.12"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "google-adk[mcp]>=2.11.0",
     "google-ads>=32,<33",
+    "lxml>=6.1.3",
 ]

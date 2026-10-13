@@ -98,4 +98,13 @@ def run_skill_script(skill: str, script: str, args: list[str]) -> dict:
     return {"exit_code": r.returncode, "stdout": r.stdout[-MAX_OUTPUT_CHARS:], "stderr": r.stderr[-MAX_OUTPUT_CHARS // 4:]}
 
 
-run_skill_script_tool = FunctionTool(run_skill_script, require_confirmation=needs_confirmation)
+def run_skill_script_tool(skills: set[str]) -> FunctionTool:
+    """A run_skill_script tool limited to the scripts of the given skills."""
+    def run_allowed(skill: str, script: str, args: list[str]) -> dict:
+        if skill not in skills:
+            return {"error": f"Skill {skill!r} is not available to this agent. Available: {sorted(skills)}"}
+        return run_skill_script(skill, script, args)
+
+    run_allowed.__name__ = run_skill_script.__name__
+    run_allowed.__doc__ = run_skill_script.__doc__
+    return FunctionTool(run_allowed, require_confirmation=needs_confirmation)
