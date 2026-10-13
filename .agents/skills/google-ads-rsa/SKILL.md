@@ -69,6 +69,9 @@ that fails:
    their words and a reason to click.
 5. **Policy style.** No all caps for emphasis, no `!` in headlines, no
    repeated punctuation, emoji, phone numbers, or URLs in the text.
+6. **No unproven superlatives.** "Best", "#1", "top-rated", and similar
+   comparative claims need third-party verification on the landing page,
+   so leave them out otherwise.
 
 ### 4. Lint
 `$R spec-template > media/search/rsa.json`, fill in the ads, then:
@@ -79,7 +82,12 @@ $R lint --spec media/search/rsa.json --customer ID --brand "Brand Name"
   Strength down: fewer than 10 headlines, near-duplicate assets, pins, and
   keywords that appear in no headline.
 * With `--customer`, lint loads each ad group's live keywords and lists
-  `keyword_coverage.missing`. Work the top missing keywords into headlines.
+  `keyword_coverage.missing`. Work the top missing keywords into headlines,
+  but only where the page backs up what the keyword says. If a keyword
+  implies a claim the page doesn't make ("organic", "handmade", "best"),
+  leave it out of the copy and suggest removing the keyword with the
+  `google-ads-search-campaigns` skill, or adding the claim to the page if
+  it is true.
   Without `--customer`, set `keywords` on the ad in the spec for an offline
   check.
 * Repeat steps 3 and 4 until there are no errors and every remaining warning
@@ -93,13 +101,17 @@ $R create --customer ID --spec media/search/rsa.json
 * `create` re-runs lint and refuses to send anything if lint finds errors.
   The dry run then has Google check text, policy, and URLs without creating
   anything. Policy errors print the policy name and the offending text.
-* Show the user the final copy and confirm before the real run. Ads are
+* Show the user the final copy and confirm before the real run. Give the
+  final URL on its own line, and label `path1`/`path2` as the display path:
+  it only changes the URL shown in the ad, needn't exist as a page, and
+  every click goes to the final URL. Don't write it as a link. Ads are
   created **PAUSED** unless the spec says `"status": "ENABLED"`.
 
 ### 6. Review and Iterate
 * `$R list --customer ID --campaign ID` shows Ad Strength, `action_items`
-  (Google's own suggestions), approval, and policy topics. Ad Strength and
-  approval stay `PENDING` or `UNDER_REVIEW` for a few hours.
+  (Google's own suggestions), approval, and policy topics. Right after
+  creation, Ad Strength shows `PENDING` and approval `UNKNOWN`, then
+  `UNDER_REVIEW`, for a few hours. That is normal, not an error.
 * After roughly two weeks of traffic,
   `$R performance --customer ID --ad AG_ID~AD_ID` labels each asset `BEST`,
   `GOOD`, or `LOW`. Ads can't be edited, so to replace `LOW` assets, create a

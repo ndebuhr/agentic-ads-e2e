@@ -134,7 +134,10 @@ def lint_ad(ad, i, keywords, brand):
         warns.append(f"{w}: no headline mentions {brand!r}")
 
     coverage = None
-    kws = [strip_match(k) for k in (ad.get("keywords") or keywords or [])]
+    # One entry per keyword text: [exact] and "phrase" versions of the same words count once.
+    kws, seen = [], set()
+    for k in map(strip_match, ad.get("keywords") or keywords or []):
+        if k.lower() not in seen: seen.add(k.lower()); kws.append(k)
     if kws:
         htoks = [tokens(h) for h in heads]
         covered = [k for k in kws if any(tokens(k) and tokens(k) <= ht for ht in htoks)]
