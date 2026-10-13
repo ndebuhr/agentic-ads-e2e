@@ -3,6 +3,7 @@
 Agent skills and infrastructure for running Google Ads campaigns end-to-end, from creative generation to campaign reporting.
 
 - `.agents/skills/` — agent skills for image generation, video editing, and Google Ads (campaign summaries, Performance Max asset groups, Search campaigns and responsive search ads, experiments)
+- `ads-agent/` — ADK agent that runs the skills on Gemini through Vertex AI (see its README)
 - `google-ads-e2e/` — Terraform to deploy the official Google Ads MCP server on Cloud Run (see its README)
 
 ## MCP servers
