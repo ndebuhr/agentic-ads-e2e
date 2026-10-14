@@ -23,6 +23,7 @@ The skills are loaded unchanged with ADK's `SkillToolset`. Their workstation-spe
 | `genmedia-veo`, `genmedia-omni`, `genmedia-avtool` | The same local MCP servers, over stdio |
 | `view_file` on an image, video, audio clip, or PDF | `view_file`, which shows the file to the model (up to 15 MB; local or `gs://`) |
 | Writing specs, reading pages and landing pages | `write_file`, `read_file`, `list_files`, `load_web_page` |
+| A `grep` one-liner, or searching a file too large to read (such as the geo targets CSV) | `search_file`, which returns the matching lines |
 | google-ads-rsa steps 2 to 4 (generate, critique, lint) | `rsa_copywriter`, a workflow described below |
 | Research: competitors, search terms, Google Ads policies (`ads_ops` only) | `google_search_agent`, Gemini's Google Search grounding, which ADK wraps in a search-only sub-agent so it can sit beside other tools. Findings guide strategy; ad claims still come only from the landing page. Each search is a separately billed grounded request |
 
@@ -36,7 +37,12 @@ ADK's built-in `run_skill_script` is turned off. It copies a script into a temp 
 
 - `share_file` puts a workspace file in the chat's artifacts panel, where you can preview and download it. Generated images are shared automatically.
 - Files you upload in the chat are saved as artifacts. The agent can look at them, and `save_upload` copies one into the workspace, for example into `brand_assets/`.
+- Large files stay out of the model's context. Skills can bundle large assets, like the 23 MB geo targets CSV, which `load_skill_resource` would otherwise return whole. `ads_agent/workspace.py` refuses to load any skill resource over 200,000 bytes, withholds any tool result over 200,000 characters, refuses `read_file` on files over 2 MB, and caps `search_file` at 200 matching lines. The model is told to search instead.
 - Media from `view_file` is sent to the model once; later requests keep only the file path, so viewing a file doesn't make every following call bigger.
+
+### Errors
+
+A tool that raises an exception doesn't end the run. ADK's `ReflectAndRetryToolPlugin` returns the error to the model with guidance to correct the call and retry, up to 2 times, then hands it back to the model to report.
 
 ### Memory
 
@@ -54,7 +60,7 @@ The agent saves lasting facts you state or approve (brand facts, approved URLs, 
 When `ADS_AGENT_MODEL_ARMOR_TEMPLATE` is set, [Model Armor](https://cloud.google.com/security-command-center/docs/model-armor-overview) screens:
 
 - Each user message and each model reply, with ADK's `ModelArmorPlugin`. Each distinct message is screened once, not on every model call.
-- The results of `load_web_page`, `read_file`, and `google_search_agent`, with `ads_agent/model_armor.py`. This is where outside content, and any instructions planted in it, reaches the model; ADK's plugin doesn't screen tool results.
+- The results of `load_web_page`, `read_file`, `search_file`, and `google_search_agent`, with `ads_agent/model_armor.py`. This is where outside content, and any instructions planted in it, reaches the model; ADK's plugin doesn't screen tool results.
 
 A flagged message, reply, or result is replaced with a notice. If Model Armor can't be reached, it blocks instead of letting content through unscreened.
 

@@ -10,6 +10,7 @@ from google.adk import Agent
 from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.apps.app import App, EventsCompactionConfig
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
+from google.adk.plugins import ReflectAndRetryToolPlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from google.adk.skills import load_skill_from_dir
 from google.adk.tools import skill_toolset
@@ -26,8 +27,8 @@ from .memory import remember
 from .model_armor import model_armor_plugins
 from .rsa_workflow import rsa_copywriter
 from .skill_scripts import run_skill_script_tool
-from .workspace import (DropOldToolMedia, generate_image_tool, list_files, read_file, save_upload, share_file,
-                        view_file, write_file)
+from .workspace import (CapToolResults, DropOldToolMedia, generate_image_tool, list_files, read_file, save_upload,
+                        search_file, share_file, view_file, write_file)
 
 ADS_SKILL_PREFIX = "google-ads-"
 
@@ -39,6 +40,9 @@ TRANSLATIONS = """\
   then `write_file` with the output.
 - Creating or editing a file -> `write_file`; reading one -> `read_file` or
   `list_files`; reading a landing page -> `load_web_page`.
+- A `grep` one-liner (`grep -i 'PATTERN' FILE`) -> `search_file` with the
+  file path and the pattern. Use it for any file too large to read, such as a
+  skill's CSV data; never load such a file with `load_skill_resource`.
 - `view_file` on an image, video, audio clip, or PDF -> `view_file`, which
   shows it to you. Look at a file before describing or approving it.
 - A command the skill says the user must run themselves (OAuth consent, setup
@@ -141,9 +145,21 @@ ads_skills = [s for s in skills if s.name.startswith(ADS_SKILL_PREFIX)]
 creative_skills = [s for s in skills if not s.name.startswith(ADS_SKILL_PREFIX)]
 
 
+class _SkillToolset(skill_toolset.SkillToolset):
+    """SkillToolset that tells the model skill scripts can run.
+
+    ADK assumes scripts can't run without a code executor, and its skills
+    instruction then tells the model to read scripts and follow them by hand.
+    Here they run through run_skill_script_tool, which has the built-in tool's name.
+    """
+
+    def _has_script_execution(self, context) -> bool:
+        return True
+
+
 def _skill_tools(group: list) -> list:
     return [
-        skill_toolset.SkillToolset(
+        _SkillToolset(
             skills=group,
             # Scripts run through run_skill_script_tool instead, in the workspace.
             tool_filter=["list_skills", "search_skills", "load_skill", "unload_skill", "load_skill_resource"],
@@ -152,7 +168,7 @@ def _skill_tools(group: list) -> list:
     ]
 
 
-FILE_TOOLS = [list_files, read_file, write_file, view_file, share_file, save_upload, load_artifacts_tool, load_web_page]
+FILE_TOOLS = [list_files, read_file, search_file, write_file, view_file, share_file, save_upload, load_artifacts_tool, load_web_page]
 MEMORY_TOOLS = [PreloadMemoryTool(), remember]
 
 ads_ops = Agent(
@@ -185,7 +201,9 @@ root_agent = Agent(
 app = App(
     name="ads_agent",
     root_agent=root_agent,
-    plugins=[AdsWriteGuardrails(), *model_armor_plugins(MODEL_ARMOR_TEMPLATE), SaveFilesAsArtifactsPlugin(), DropOldToolMedia()],
+    plugins=[AdsWriteGuardrails(), CapToolResults(), *model_armor_plugins(MODEL_ARMOR_TEMPLATE), SaveFilesAsArtifactsPlugin(), DropOldToolMedia(),
+             # A tool that raises returns the error to the model with retry guidance, instead of ending the run.
+             ReflectAndRetryToolPlugin(max_retries=2, throw_exception_if_retry_exceeded=False)],
     # The instruction, loaded skills, and tool declarations repeat on every call; cache them.
     context_cache_config=ContextCacheConfig(ttl_seconds=1800, cache_intervals=10),
     # Query results make long sessions large; summarize older turns past this size.

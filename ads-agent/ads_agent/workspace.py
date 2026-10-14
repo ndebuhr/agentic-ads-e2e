@@ -1,6 +1,7 @@
 """File, media, and artifact tools scoped to the workspace, standing in for a workstation agent's own."""
-import functools
+import json
 import mimetypes
+import re
 from pathlib import Path
 
 from google import genai
@@ -10,30 +11,25 @@ from google.adk.plugins import BasePlugin
 from google.adk.tools import FunctionTool, ToolContext
 from google.genai import types
 
-from .config import GOOGLE_CLOUD_PROJECT, WORKSPACE
+from .config import GOOGLE_CLOUD_PROJECT, SKILLS_DIR, WORKSPACE
 
 MAX_READ_CHARS = 100_000
+MAX_READ_BYTES = 2 * 1024 * 1024
+MAX_SEARCH_MATCHES = 200
+# Any tool result larger than this is withheld from the model (for example a 23 MB skill asset).
+MAX_RESULT_CHARS = 200_000
 # Gemini takes at most about 20 MB of inline data per request.
 MAX_VIEW_BYTES = 15 * 1024 * 1024
 VIEWABLE_TYPES = ("image/", "video/", "audio/", "application/pdf")
 IMAGE_MODEL = "gemini-2.5-flash-image"
 
 
-def _tool(fn):
-    """Returns path and file errors to the model as {"error": ...} instead of raising."""
-    @functools.wraps(fn)
-    async def wrapper(*args, **kwargs):
-        try:
-            return await fn(*args, **kwargs)
-        except (ValueError, OSError, UnicodeDecodeError) as e:
-            return {"error": str(e)}
-    return wrapper
-
-
 def _path(rel: str) -> Path:
     p = (WORKSPACE / rel).resolve()
     if p != WORKSPACE and WORKSPACE not in p.parents:
         raise ValueError(f"{rel} is outside the workspace")
+    if ".git" in p.parts or ".git" in Path(rel).parts:
+        raise ValueError(f"{rel} is inside a .git folder, which these tools don't open")
     return p
 
 
@@ -46,19 +42,43 @@ def _write(p: Path, data: bytes) -> None:
     p.write_bytes(data)
 
 
-@_tool
 async def list_files(directory: str = ".") -> dict:
     """Lists files and folders in a workspace directory (relative path)."""
     return {"entries": sorted(f"{e.name}/" if e.is_dir() else e.name for e in _path(directory).iterdir() if not e.name.startswith("."))}
 
 
-@_tool
 async def read_file(path: str) -> dict:
     """Reads a text file in the workspace, such as a spec or a site page."""
-    return {"content": _path(path).read_text()[:MAX_READ_CHARS]}
+    p = _path(path)
+    if (size := p.stat().st_size) > MAX_READ_BYTES:
+        return {"error": f"{path} is {size / 2**20:.1f} MB, too large to read. Query it with a skill script instead."}
+    return {"content": p.read_text()[:MAX_READ_CHARS]}
 
 
-@_tool
+async def search_file(path: str, pattern: str, max_matches: int = 50) -> dict:
+    """Returns the lines of a workspace file that match a pattern, like `grep -i PATTERN FILE`.
+
+    Use it wherever a skill shows a grep one-liner, and to search files too
+    large to read, such as a skill's CSV data.
+
+    Args:
+      path: Workspace-relative path of the file.
+      pattern: A regular expression, matched case-insensitively against each
+        line, for example '"Boulder County,Colorado,'.
+      max_matches: How many matching lines to return (at most 200).
+    """
+    regex = re.compile(pattern, re.IGNORECASE)
+    limit = min(max_matches, MAX_SEARCH_MATCHES)
+    matches, total = [], 0
+    with _path(path).open(encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if regex.search(line):
+                total += 1
+                if len(matches) < limit:
+                    matches.append(line.rstrip("\n"))
+    return {"matches": matches, "total": total}
+
+
 async def write_file(path: str, content: str) -> dict:
     """Writes a text file in the workspace, creating folders as needed.
 
@@ -75,7 +95,6 @@ def _mime_type(path: str) -> str | None:
     return mimetypes.guess_type(path)[0]
 
 
-@_tool
 async def view_file(path: str) -> dict:
     """Shows you an image, video, audio clip, or PDF so you can judge it yourself.
 
@@ -121,12 +140,41 @@ class DropOldToolMedia(BasePlugin):
                 for p in content.parts]})
 
 
+class CapToolResults(BasePlugin):
+    """Withholds any tool result too large for the model's context.
+
+    Skills can bundle large assets (the geo targets CSV is 23 MB), and
+    load_skill_resource would return one whole. Media parts, which the
+    framework sends separately, aren't counted.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(name="cap_tool_results")
+
+    async def before_tool_callback(self, *, tool, tool_args: dict, tool_context: ToolContext) -> dict | None:
+        # Checked before loading too: ADK attaches a binary asset to the next model request
+        # itself, so a large non-UTF-8 file would get past the result check below.
+        if tool.name != "load_skill_resource":
+            return None
+        p = SKILLS_DIR / str(tool_args.get("skill_name")) / str(tool_args.get("file_path"))
+        if p.is_file() and p.stat().st_size > MAX_RESULT_CHARS:
+            return {"error": f"{tool_args.get('file_path')} is {p.stat().st_size:,} bytes, too large to show you. "
+                             "Search it with search_file instead of loading it."}
+        return None
+
+    async def after_tool_callback(self, *, tool, tool_args: dict, tool_context: ToolContext, result) -> dict | None:
+        size = len(json.dumps(result, default=lambda _: ""))
+        if size <= MAX_RESULT_CHARS:
+            return None
+        return {"error": f"{tool.name} returned {size:,} characters, too large to show you. "
+                         "Search the file with search_file instead of loading it."}
+
+
 async def _share(tool_context: ToolContext, p: Path, data: bytes, mime: str | None = None) -> int:
     mime = mime or _mime_type(p.name) or "application/octet-stream"
     return await tool_context.save_artifact(_rel(p), types.Part.from_bytes(data=data, mime_type=mime))
 
 
-@_tool
 async def share_file(path: str, tool_context: ToolContext) -> dict:
     """Shares a workspace file with the user in the chat, where they can preview and download it.
 
@@ -138,7 +186,6 @@ async def share_file(path: str, tool_context: ToolContext) -> dict:
     return {"shared": _rel(p), "version": await _share(tool_context, p, p.read_bytes())}
 
 
-@_tool
 async def save_upload(artifact_name: str, path: str, tool_context: ToolContext) -> dict:
     """Saves a file the user uploaded in the chat into the workspace.
 

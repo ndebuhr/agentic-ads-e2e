@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 
 # Tools whose results carry content from outside the agent.
 # google_search_agent is the wrapper ADK puts around google_search when an agent has other tools.
-SCREENED_TOOLS = {"load_web_page", "read_file", "google_search_agent"}
+SCREENED_TOOLS = {"load_web_page", "read_file", "search_file", "google_search_agent"}
 CHUNK_CHARS = 50_000
 MAX_CHUNKS = 4
 CACHE_SIZE = 256

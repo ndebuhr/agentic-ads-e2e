@@ -56,9 +56,12 @@ the landing pages: each ad group should have one obvious final URL.
   sibling ad groups from overlapping.
 
 ### 3. Pick Locations, Budget, and Bidding
-* `$S geo-suggest "Austin, TX" 78701` resolves names and ZIP codes to geo
-  target IDs. `2840` is the whole US. `location_presence_only: true` (the
-  default) skips people who are only researching the area.
+* Get location IDs from the `google-ads-geo-targets` skill, which looks them
+  up offline with no sign-in or API call. `2840` is the whole US. Use
+  `$S geo-suggest "Austin, TX" 78701` only for reach estimates, or for US DMA
+  (metro) regions, which the offline list leaves out.
+* `location_presence_only: true` (the default) skips people who are only
+  researching the area.
 * Bidding: `MAXIMIZE_CLICKS` with a `cpc_ceiling` for a new account with no
   conversion data. `MAXIMIZE_CONVERSIONS` (optional `target_cpa`) or
   `MAXIMIZE_CONVERSION_VALUE` (optional `target_roas`) once primary conversion
