@@ -21,7 +21,7 @@ from google.adk.plugins import BasePlugin
 from google.adk.tools import BaseTool, ToolContext
 
 from .config import WORKSPACE
-from .skill_scripts import ADS_WRITE_COMMANDS
+from .skill_scripts import ads_write_command
 
 DRY_RUNS_KEY = "guardrails:dry_runs"
 TOOL = "run_skill_script"
@@ -29,11 +29,9 @@ TOOL = "run_skill_script"
 
 def _write_command(args: dict) -> tuple[str, list[str]] | None:
     """Returns (script key, argv) for a Google Ads write command, else None."""
-    key = f"{args.get('skill')}/{args.get('script')}"
     argv = [str(a) for a in args.get("args") or []]
-    if key in ADS_WRITE_COMMANDS and argv and argv[0] in ADS_WRITE_COMMANDS[key]:
-        return key, argv
-    return None
+    key = ads_write_command(str(args.get("skill")), str(args.get("script")), argv)
+    return (key, argv) if key else None
 
 
 def _flag(argv: list[str], name: str) -> str | None:

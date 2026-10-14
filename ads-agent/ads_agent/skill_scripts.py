@@ -51,11 +51,17 @@ def _resolve(skill: str, script: str) -> Path:
     return path
 
 
+def ads_write_command(skill: str, script: str, args: list) -> str | None:
+    """Returns the script key if the command writes to a Google Ads account (dry run or not), else None."""
+    key = _key(skill, script)
+    return key if key in ADS_WRITE_COMMANDS and args and str(args[0]) in ADS_WRITE_COMMANDS[key] else None
+
+
 def needs_confirmation(skill: str, script: str, args: list[str]) -> bool:
     """Confirm account writes and paid generation; everything else runs directly."""
     key = _key(skill, script)
     if key in ADS_WRITE_COMMANDS:
-        return bool(args) and args[0] in ADS_WRITE_COMMANDS[key] and "--dry-run" not in args
+        return bool(ads_write_command(skill, script, args)) and "--dry-run" not in args
     if key in LOCAL_SCRIPTS or key in TERMINAL_ONLY:
         return False
     if key == "genmedia-video-editing/mcp_call.py":

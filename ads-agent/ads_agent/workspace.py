@@ -1,4 +1,5 @@
 """File, media, and artifact tools scoped to the workspace, standing in for a workstation agent's own."""
+import functools
 import mimetypes
 from pathlib import Path
 
@@ -18,6 +19,17 @@ VIEWABLE_TYPES = ("image/", "video/", "audio/", "application/pdf")
 IMAGE_MODEL = "gemini-2.5-flash-image"
 
 
+def _tool(fn):
+    """Returns path and file errors to the model as {"error": ...} instead of raising."""
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except (ValueError, OSError, UnicodeDecodeError) as e:
+            return {"error": str(e)}
+    return wrapper
+
+
 def _path(rel: str) -> Path:
     p = (WORKSPACE / rel).resolve()
     if p != WORKSPACE and WORKSPACE not in p.parents:
@@ -25,43 +37,46 @@ def _path(rel: str) -> Path:
     return p
 
 
-def list_files(directory: str = ".") -> dict:
+def _rel(p: Path) -> str:
+    return str(p.relative_to(WORKSPACE))
+
+
+def _write(p: Path, data: bytes) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(data)
+
+
+@_tool
+async def list_files(directory: str = ".") -> dict:
     """Lists files and folders in a workspace directory (relative path)."""
-    try:
-        d = _path(directory)
-        return {"entries": sorted(f"{e.name}/" if e.is_dir() else e.name for e in d.iterdir() if not e.name.startswith("."))}
-    except (ValueError, OSError) as e:
-        return {"error": str(e)}
+    return {"entries": sorted(f"{e.name}/" if e.is_dir() else e.name for e in _path(directory).iterdir() if not e.name.startswith("."))}
 
 
-def read_file(path: str) -> dict:
+@_tool
+async def read_file(path: str) -> dict:
     """Reads a text file in the workspace, such as a spec or a site page."""
-    try:
-        return {"content": _path(path).read_text()[:MAX_READ_CHARS]}
-    except (ValueError, OSError, UnicodeDecodeError) as e:
-        return {"error": str(e)}
+    return {"content": _path(path).read_text()[:MAX_READ_CHARS]}
 
 
-def write_file(path: str, content: str) -> dict:
+@_tool
+async def write_file(path: str, content: str) -> dict:
     """Writes a text file in the workspace, creating folders as needed.
 
     Use it for the JSON specs the skills fill in, for example
     media/search/campaign.json. Overwrites an existing file.
     """
-    try:
-        p = _path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
-        return {"written": str(p.relative_to(WORKSPACE)), "bytes": len(content.encode())}
-    except (ValueError, OSError) as e:
-        return {"error": str(e)}
+    p = _path(path)
+    data = content.encode()
+    _write(p, data)
+    return {"written": _rel(p), "bytes": len(data)}
 
 
 def _mime_type(path: str) -> str | None:
     return mimetypes.guess_type(path)[0]
 
 
-def view_file(path: str) -> dict:
+@_tool
+async def view_file(path: str) -> dict:
     """Shows you an image, video, audio clip, or PDF so you can judge it yourself.
 
     Use it to check generated creative, storyboards and contact sheets, end
@@ -76,14 +91,11 @@ def view_file(path: str) -> dict:
         return {"error": f"Can't view {path}: not an image, video, audio, or PDF file. Use read_file for text."}
     if path.startswith("gs://"):
         return {"file": path, "media": types.Part.from_uri(file_uri=path, mime_type=mime)}
-    try:
-        p = _path(path)
-        size = p.stat().st_size
-        if size > MAX_VIEW_BYTES:
-            return {"error": f"{path} is {size / 2**20:.1f} MB; the limit is {MAX_VIEW_BYTES // 2**20} MB. View a storyboard or extracted frames instead."}
-        return {"file": path, "media": types.Part.from_bytes(data=p.read_bytes(), mime_type=mime)}
-    except (ValueError, OSError) as e:
-        return {"error": str(e)}
+    p = _path(path)
+    size = p.stat().st_size
+    if size > MAX_VIEW_BYTES:
+        return {"error": f"{path} is {size / 2**20:.1f} MB; the limit is {MAX_VIEW_BYTES // 2**20} MB. View a storyboard or extracted frames instead."}
+    return {"file": path, "media": types.Part.from_bytes(data=p.read_bytes(), mime_type=mime)}
 
 
 class DropOldToolMedia(BasePlugin):
@@ -109,10 +121,12 @@ class DropOldToolMedia(BasePlugin):
                 for p in content.parts]})
 
 
-async def _save_artifact(tool_context: ToolContext, rel: str, data: bytes, mime: str) -> int:
-    return await tool_context.save_artifact(rel, types.Part.from_bytes(data=data, mime_type=mime))
+async def _share(tool_context: ToolContext, p: Path, data: bytes, mime: str | None = None) -> int:
+    mime = mime or _mime_type(p.name) or "application/octet-stream"
+    return await tool_context.save_artifact(_rel(p), types.Part.from_bytes(data=data, mime_type=mime))
 
 
+@_tool
 async def share_file(path: str, tool_context: ToolContext) -> dict:
     """Shares a workspace file with the user in the chat, where they can preview and download it.
 
@@ -120,15 +134,11 @@ async def share_file(path: str, tool_context: ToolContext) -> dict:
     user can review it without opening the workspace. Sharing a file again
     after a change adds a new version.
     """
-    try:
-        p = _path(path)
-        rel = str(p.relative_to(WORKSPACE))
-        version = await _save_artifact(tool_context, rel, p.read_bytes(), _mime_type(rel) or "application/octet-stream")
-    except (ValueError, OSError) as e:
-        return {"error": str(e)}
-    return {"shared": rel, "version": version}
+    p = _path(path)
+    return {"shared": _rel(p), "version": await _share(tool_context, p, p.read_bytes())}
 
 
+@_tool
 async def save_upload(artifact_name: str, path: str, tool_context: ToolContext) -> dict:
     """Saves a file the user uploaded in the chat into the workspace.
 
@@ -143,13 +153,9 @@ async def save_upload(artifact_name: str, path: str, tool_context: ToolContext) 
     part = await tool_context.load_artifact(artifact_name)
     if part is None or part.inline_data is None or part.inline_data.data is None:
         return {"error": f"No uploaded file named {artifact_name!r} in this session"}
-    try:
-        p = _path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(part.inline_data.data)
-    except (ValueError, OSError) as e:
-        return {"error": str(e)}
-    return {"saved": str(p.relative_to(WORKSPACE)), "bytes": len(part.inline_data.data), "mime_type": part.inline_data.mime_type}
+    p = _path(path)
+    _write(p, part.inline_data.data)
+    return {"saved": _rel(p), "bytes": len(part.inline_data.data), "mime_type": part.inline_data.mime_type}
 
 
 async def generate_image(prompt: str, output_path: str, tool_context: ToolContext, aspect_ratio: str = "1:1") -> dict:
@@ -176,11 +182,10 @@ async def generate_image(prompt: str, output_path: str, tool_context: ToolContex
         return {"error": "The model returned no image"}
     except Exception as e:  # API and auth errors go back to the model as text.
         return {"error": str(e)}
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(part.inline_data.data)
-    rel = str(out.relative_to(WORKSPACE))
-    version = await _save_artifact(tool_context, rel, part.inline_data.data, part.inline_data.mime_type)
-    return {"saved": rel, "shared_version": version, "bytes": len(part.inline_data.data), "mime_type": part.inline_data.mime_type}
+    image = part.inline_data
+    _write(out, image.data)
+    version = await _share(tool_context, out, image.data, image.mime_type)
+    return {"saved": _rel(out), "shared_version": version, "bytes": len(image.data), "mime_type": image.mime_type}
 
 
 generate_image_tool = FunctionTool(generate_image, require_confirmation=True)
