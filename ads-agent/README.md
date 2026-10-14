@@ -24,6 +24,7 @@ The skills are loaded unchanged with ADK's `SkillToolset`. Their workstation-spe
 | `view_file` on an image, video, audio clip, or PDF | `view_file`, which shows the file to the model (up to 15 MB; local or `gs://`) |
 | Writing specs, reading pages and landing pages | `write_file`, `read_file`, `list_files`, `load_web_page` |
 | google-ads-rsa steps 2 to 4 (generate, critique, lint) | `rsa_copywriter`, a workflow described below |
+| Research: competitors, search terms, Google Ads policies (`ads_ops` only) | `google_search_agent`, Gemini's Google Search grounding, which ADK wraps in a search-only sub-agent so it can sit beside other tools. Findings guide strategy; ad claims still come only from the landing page. Each search is a separately billed grounded request |
 
 ADK's built-in `run_skill_script` is turned off. It copies a script into a temp directory and runs it in-process, which breaks the workspace-relative paths and the `uv` shebangs the scripts depend on.
 
@@ -53,7 +54,7 @@ The agent saves lasting facts you state or approve (brand facts, approved URLs, 
 When `ADS_AGENT_MODEL_ARMOR_TEMPLATE` is set, [Model Armor](https://cloud.google.com/security-command-center/docs/model-armor-overview) screens:
 
 - Each user message and each model reply, with ADK's `ModelArmorPlugin`. Each distinct message is screened once, not on every model call.
-- The results of `load_web_page` and `read_file`, with `ads_agent/model_armor.py`. This is where outside content, and any instructions planted in it, reaches the model; ADK's plugin doesn't screen tool results.
+- The results of `load_web_page`, `read_file`, and `google_search_agent`, with `ads_agent/model_armor.py`. This is where outside content, and any instructions planted in it, reaches the model; ADK's plugin doesn't screen tool results.
 
 A flagged message, reply, or result is replaced with a notice. If Model Armor can't be reached, it blocks instead of letting content through unscreened.
 

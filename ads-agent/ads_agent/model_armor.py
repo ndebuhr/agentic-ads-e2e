@@ -23,7 +23,8 @@ from google.cloud import modelarmor_v1
 log = logging.getLogger(__name__)
 
 # Tools whose results carry content from outside the agent.
-SCREENED_TOOLS = {"load_web_page", "read_file"}
+# google_search_agent is the wrapper ADK puts around google_search when an agent has other tools.
+SCREENED_TOOLS = {"load_web_page", "read_file", "google_search_agent"}
 CHUNK_CHARS = 50_000
 MAX_CHUNKS = 4
 CACHE_SIZE = 256
@@ -77,9 +78,9 @@ class ToolResultScreening(BasePlugin):
         return response.sanitization_result
 
     async def after_tool_callback(self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext, result: Any) -> dict | None:
-        if tool.name not in SCREENED_TOOLS or not isinstance(result, dict) or "error" in result:
+        if tool.name not in SCREENED_TOOLS or not result or (isinstance(result, dict) and "error" in result):
             return None
-        text = json.dumps(result, ensure_ascii=False)
+        text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
         chunks = [text[i:i + CHUNK_CHARS] for i in range(0, len(text), CHUNK_CHARS)][:MAX_CHUNKS]
         try:
             results = await asyncio.gather(*(self._screen(c) for c in chunks))

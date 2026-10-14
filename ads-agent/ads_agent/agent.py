@@ -13,6 +13,7 @@ from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from google.adk.skills import load_skill_from_dir
 from google.adk.tools import skill_toolset
+from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool
 from google.adk.tools.load_web_page import load_web_page
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
@@ -84,8 +85,14 @@ ADS_OPS = specialist_instruction(
   `rsa_copywriter`, with a brief naming each ad group's ID, theme, and final
   URL and everything the user asked for. It writes the spec and returns the
   review result; show the user the copy and any open issues, then continue
-  with step 5 yourself.""",
+  with step 5 yourself.
+- Researching competitors and their ads, what a search term means to
+  searchers, keyword and negative keyword ideas, or current Google Ads
+  policies and limits -> `google_search_agent`. Each search is a billed,
+  slow request: plan a few targeted queries rather than many narrow ones.""",
     """\
+- Search findings guide research and strategy only. Every claim in ad copy
+  must still be on the landing page.
 - Every write runs with --dry-run first, and the real run must repeat the
   same command and spec. Report the dry run's warnings, show the user the
   plan, and get their approval before the real run; they also confirm each
@@ -154,7 +161,8 @@ ads_ops = Agent(
     description="Builds and maintains Google Ads campaigns: Search, RSAs, Performance Max asset groups, experiments, and summaries.",
     instruction=ADS_OPS,
     tools=[*_skill_tools(ads_skills), customers_list_accessible_customers, search_search, rsa_copywriter,
-           *FILE_TOOLS, *MEMORY_TOOLS],
+           # ADK wraps google_search in a search-only sub-agent, since the built-in tool can't share an agent.
+           GoogleSearchTool(bypass_multi_tools_limit=True), *FILE_TOOLS, *MEMORY_TOOLS],
 )
 
 creative = Agent(
