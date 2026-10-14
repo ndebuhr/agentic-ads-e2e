@@ -1,0 +1,41 @@
+{
+  "name": "ads_agent",
+  "description": "Builds and maintains Google Ads campaigns and produces ad creative for a small business, following its agent skills. Writes to Google Ads are always dry-run first, created paused, and confirmed by the caller; campaigns and ads are never enabled.",
+  "version": "0.1.0",
+  "supported_interfaces": [
+    {
+      "url": "http://localhost:8000/a2a/ads_agent",
+      "protocol_binding": "JSONRPC",
+      "protocol_version": "1.0"
+    }
+  ],
+  "capabilities": {
+    "streaming": true,
+    "push_notifications": false
+  },
+  "default_input_modes": ["text/plain"],
+  "default_output_modes": ["text/plain"],
+  "skills": [
+    {
+      "id": "ads_ops",
+      "name": "Google Ads operations",
+      "description": "Search campaigns, ad groups, keywords and negatives, responsive search ads, Performance Max asset groups, experiments, and campaign performance summaries.",
+      "tags": ["google-ads", "search", "rsa", "performance-max", "experiments", "reporting"],
+      "examples": [
+        "Summarize my Google Ads campaigns for the last 30 days.",
+        "Draft responsive search ads for ad group 1234567890.",
+        "Which search terms should become negative keywords?"
+      ]
+    },
+    {
+      "id": "creative",
+      "name": "Ad creative",
+      "description": "Ad images, video (Veo, Gemini Omni, ffmpeg), voiceover and music, animated end cards, and video ad QA.",
+      "tags": ["images", "video", "audio", "voiceover", "creative"],
+      "examples": [
+        "Generate a 16:9 hero image for the product page.",
+        "QA this video ad for YouTube loudness and format requirements."
+      ]
+    }
+  ]
+}

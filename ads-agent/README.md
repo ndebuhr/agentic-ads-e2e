@@ -120,9 +120,32 @@ If `gcloud auth application-default login` warns that no quota project is set, r
 
 Both sign-ins can expire under Google Workspace session control (`invalid_rapt` or "Reauthentication is needed"). Repeat steps 1 or 2 when that happens.
 
+## A2A
+
+The agent is also an [A2A](https://a2a-protocol.org/) server, so other agents can call it. `ads_agent/agent.json` is its agent card, and the `--a2a` flag serves it next to the usual API:
+
+```bash
+uv run adk api_server --a2a   # or: uv run adk web --a2a
+```
+
+- Agent card: `http://localhost:8000/a2a/ads_agent/.well-known/agent-card.json`
+- JSON-RPC endpoint: `http://localhost:8000/a2a/ads_agent`
+
+A2A requests run through the same `App` as the web UI, so the guardrails, Model Armor, memory, and caching all apply. A step that needs confirmation (a Google Ads write or paid generation) puts the A2A task in the `input-required` state, and **the caller approves or rejects it**, so over A2A the calling agent, not you, confirms writes. The code guardrails still hold: nothing is enabled, and no write runs without a matching dry run.
+
+The endpoint has no authentication and runs with your Google Ads and Google Cloud credentials. Keep it on localhost (the default), and change the URL in `agent.json` if you serve it on another host or port.
+
+From another ADK agent, add it as a sub-agent:
+
+```python
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+
+ads_agent = RemoteA2aAgent(name="ads_agent", agent_card="http://localhost:8000/a2a/ads_agent/.well-known/agent-card.json")
+```
+
 ## Limits
 
 - Runs locally, as you, with your Google Ads and Google Cloud credentials. A deployed version needs a service account or per-user OAuth instead of `~/google-ads.yaml`.
 - `view_file` takes files up to 15 MB. For larger images or long videos, view a resized copy, a storyboard, or extracted frames.
 - Context caching starts on a session's second turn, once the repeated prefix reaches the model's minimum (4,096 tokens for Gemini 3).
-- ADK Skills, tool confirmation, compaction, and `Workflow` are experimental in ADK.
+- ADK Skills, tool confirmation, compaction, `Workflow`, and ADK's A2A support are experimental in ADK.
