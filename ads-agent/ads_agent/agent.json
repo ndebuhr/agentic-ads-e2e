@@ -1,5 +1,5 @@
 {
-  "name": "ads_agent",
+  "name": "Ads Agent",
   "description": "Builds and maintains Google Ads campaigns and produces ad creative for a small business, following its agent skills. Writes to Google Ads are always dry-run first, created paused, and confirmed by the caller; campaigns and ads are never enabled.",
   "version": "0.1.0",
   "supported_interfaces": [
