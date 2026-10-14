@@ -15,6 +15,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "google-adk", extra = ["mcp"] },
     { name = "google-ads" },
+    { name = "google-cloud-modelarmor" },
     { name = "lxml" },
 ]
 
@@ -23,6 +24,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.15.0" },
     { name = "google-adk", extras = ["mcp"], specifier = ">=2.11.0" },
     { name = "google-ads", specifier = ">=32,<33" },
+    { name = "google-cloud-modelarmor", specifier = ">=0.7.2" },
     { name = "lxml", specifier = ">=6.1.3" },
 ]
 
@@ -752,6 +754,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/c1/a8a92ae1bc4b1a8f804c776d7d3f0c771b78a62c3ad4df1be41b3fd8c767/google_api_core-2.34.0-py3-none-any.whl", hash = "sha256:cdf9c67e7ca2402d86ccbfde5f2503fc83e3cc3f58cc78456ae96cad24a6d2de", size = 180545, upload-time = "2026-08-06T06:22:47.502Z" },
 ]
 
+[package.optional-dependencies]
+grpc = [
+    { name = "grpcio" },
+    { name = "grpcio-status" },
+]
+
 [[package]]
 name = "google-auth"
 version = "2.62.0"
@@ -784,6 +792,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/40/1d7901e454831247e377ef3f642cb857cc0e82ec4d2380b7a148a48f20d1/google_auth_oauthlib-1.5.0.tar.gz", hash = "sha256:b351107c7dd9017f426cbb0272ea1bc04f469020fd18f4443c7d40362e0b1510", size = 23926, upload-time = "2026-09-29T19:25:56.699Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/bb/b5cc0757ad2f8068e7eb7180c37f82eb488627624c1b1214aa47ddbc032c/google_auth_oauthlib-1.5.0-py3-none-any.whl", hash = "sha256:71625fdea21c6c03217eb9ff13741c3096e6d257ebca0ad084dbd6e9f4aa4ef4", size = 20348, upload-time = "2026-09-29T19:25:31.842Z" },
+]
+
+[[package]]
+name = "google-cloud-modelarmor"
+version = "0.7.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8d/68/6a109ae46d3e22b9572996be85762cbed244d24165cc361214a0a2204043/google_cloud_modelarmor-0.7.2.tar.gz", hash = "sha256:31dff476580b7ea2eff3889e1169d6b4521aa51885a7abcc369e522b3ac22abf", size = 168839, upload-time = "2026-10-01T18:17:13.992Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/55/98723ed4e82678ee8c3928e2b769eb56c0d47314569f8b14ee2fff0294b8/google_cloud_modelarmor-0.7.2-py3-none-any.whl", hash = "sha256:fa98c39c3847fd653dc0c15662bbfc7ca00d23438d9a62c7c4048911b18c6a03", size = 144346, upload-time = "2026-10-01T18:11:05.111Z" },
 ]
 
 [[package]]

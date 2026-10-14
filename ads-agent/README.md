@@ -41,12 +41,32 @@ ADK's built-in `run_skill_script` is turned off. It copies a script into a temp 
 
 The agent saves lasting facts you state or approve (brand facts, approved URLs, standing rules, decisions and their reasons) with `remember`, and adds the ones that match each request to its context. It saves only these explicit facts, not whole conversations or account data. Memories last only until the server stops unless you pass a memory service (see Run).
 
-### Guardrails and confirmation
+### Guardrails
 
 `ads_agent/guardrails.py` enforces two rules in code for every agent, before any confirmation prompt:
 
 - Nothing gets enabled. `set-status --status ENABLED`, and any create spec that sets a status to `ENABLED`, are refused. Enable campaigns and ads yourself in Google Ads.
 - No write without a matching dry run. A real write runs only after the same command, with the same spec file contents, passed with `--dry-run` in the same session. Each dry run allows one real run.
+
+### Model Armor
+
+When `ADS_AGENT_MODEL_ARMOR_TEMPLATE` is set, [Model Armor](https://cloud.google.com/security-command-center/docs/model-armor-overview) screens:
+
+- Each user message and each model reply, with ADK's `ModelArmorPlugin`. Each distinct message is screened once, not on every model call.
+- The results of `load_web_page` and `read_file`, with `ads_agent/model_armor.py`. This is where outside content, and any instructions planted in it, reaches the model; ADK's plugin doesn't screen tool results.
+
+A flagged message, reply, or result is replaced with a notice. If Model Armor can't be reached, it blocks instead of letting content through unscreened.
+
+`scripts/setup_model_armor.py` creates the template with every filter at its least sensitive setting: hate speech, harassment, sexually explicit, and dangerous content, plus prompt injection and jailbreak, all at HIGH confidence, and malicious URL detection. Sensitive Data Protection is off.
+
+```bash
+gcloud services enable modelarmor.googleapis.com --project YOUR_PROJECT
+uv run scripts/setup_model_armor.py --project YOUR_PROJECT   # prints the .env line
+```
+
+Setup needs the Model Armor Admin role; running the agent needs Model Armor User (`roles/modelarmor.user`). Model Armor is a classifier, so the Google Ads rules above stay enforced in code.
+
+### Confirmation
 
 The web UI asks before any of these run:
 

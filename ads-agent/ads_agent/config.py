@@ -12,6 +12,8 @@ GOOGLE_ADS_CONFIG = os.path.expanduser(os.environ.get("GOOGLE_ADS_CONFIGURATION_
 GENMEDIA_BIN_DIR = Path(os.path.expanduser(os.environ.get("GENMEDIA_BIN_DIR", "~/.local/bin")))
 GENMEDIA_BUCKET = os.environ.get("GENMEDIA_BUCKET")
 GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
+# projects/PROJECT/locations/LOCATION/templates/TEMPLATE; unset turns Model Armor screening off.
+MODEL_ARMOR_TEMPLATE = os.environ.get("ADS_AGENT_MODEL_ARMOR_TEMPLATE")
 
 
 def model() -> Gemini:

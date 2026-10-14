@@ -3,7 +3,8 @@
 A coordinator hands each request to one of two specialists, each holding only
 its own skills and tools: ads_ops (the google-ads-* skills) and creative (the
 image, video, and audio skills). The App adds context caching, compaction of
-long sessions, the write guardrails, and upload handling for every agent.
+long sessions, the write guardrails, Model Armor screening (when configured),
+and upload handling for every agent.
 """
 from google.adk import Agent
 from google.adk.agents.context_cache_config import ContextCacheConfig
@@ -16,11 +17,12 @@ from google.adk.tools.load_artifacts_tool import load_artifacts_tool
 from google.adk.tools.load_web_page import load_web_page
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
-from .config import SKILLS_DIR, WORKSPACE, model
+from .config import MODEL_ARMOR_TEMPLATE, SKILLS_DIR, WORKSPACE, model
 from .genmedia import genmedia_toolsets
 from .google_ads import customers_list_accessible_customers, search_search
 from .guardrails import AdsWriteGuardrails
 from .memory import remember
+from .model_armor import model_armor_plugins
 from .rsa_workflow import rsa_copywriter
 from .skill_scripts import run_skill_script_tool
 from .workspace import (DropOldToolMedia, generate_image_tool, list_files, read_file, save_upload, share_file,
@@ -162,7 +164,7 @@ root_agent = Agent(
 app = App(
     name="ads_agent",
     root_agent=root_agent,
-    plugins=[AdsWriteGuardrails(), SaveFilesAsArtifactsPlugin(), DropOldToolMedia()],
+    plugins=[AdsWriteGuardrails(), *model_armor_plugins(MODEL_ARMOR_TEMPLATE), SaveFilesAsArtifactsPlugin(), DropOldToolMedia()],
     # The instruction, loaded skills, and tool declarations repeat on every call; cache them.
     context_cache_config=ContextCacheConfig(ttl_seconds=1800, cache_intervals=10),
     # Query results make long sessions large; summarize older turns past this size.
