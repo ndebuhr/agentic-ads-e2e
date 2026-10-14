@@ -17,6 +17,8 @@ import hashlib
 import json
 from typing import Any
 
+import fsspec
+
 from google.adk.plugins import BasePlugin
 from google.adk.tools import BaseTool, ToolContext
 
@@ -48,8 +50,9 @@ def _spec_bytes(argv: list[str]) -> bytes | None:
     if spec is None:
         return None
     try:
-        return (WORKSPACE / spec).read_bytes()
-    except OSError:
+        with fsspec.open(spec if spec.startswith("gs://") else str(WORKSPACE / spec), "rb") as f:
+            return f.read()
+    except (OSError, ValueError):
         return None
 
 

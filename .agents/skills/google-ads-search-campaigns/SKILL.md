@@ -23,6 +23,11 @@ skill).
 S=.agents/skills/google-ads-search-campaigns/scripts/search_campaign.py
 ```
 
+`$W` is the project's workspace for specs and media: a Cloud Storage path such as
+`gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+The scripts read and write `gs://` paths directly; to save a command's output to
+one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
+
 Run the script directly (`$S ...`), not with `python3 $S`: its shebang runs
 `uv`, which installs the `google-ads` dependency.
 
@@ -73,13 +78,13 @@ the landing pages: each ad group should have one obvious final URL.
 * Keep `search_partners` and `display_expansion` off unless the user asks.
 
 ### 4. Write the Spec
-`$S spec-template > media/search/campaign.json`, then fill it in. Languages
+Save the output of `$S spec-template` as `$W/specs/search/campaign.json`, then fill it in. Languages
 default to English (`1000`).
 
 ### 5. Validate, Then Create
 ```bash
-$S create --customer ID --spec media/search/campaign.json --dry-run
-$S create --customer ID --spec media/search/campaign.json
+$S create --customer ID --spec $W/specs/search/campaign.json --dry-run
+$S create --customer ID --spec $W/specs/search/campaign.json
 ```
 * The dry run checks keyword syntax and limits locally, then Google
   validates the whole request without creating anything. Fix errors and

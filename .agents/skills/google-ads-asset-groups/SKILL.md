@@ -21,6 +21,11 @@ with the `google-ads-auth` skill).
 A=.agents/skills/google-ads-asset-groups/scripts/asset_group.py
 ```
 
+`$W` is the project's workspace for specs and media: a Cloud Storage path such as
+`gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+The scripts read and write `gs://` paths directly; to save a command's output to
+one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
+
 ## Workflow
 
 ### 1. Pick the Campaign
@@ -46,20 +51,20 @@ image, video, and audio skills:
 | youtube_video_ids | 0 to 5 | already uploaded to YouTube |
 
 Any image works as input: the script center-crops to the target ratio,
-resizes, and writes the prepared copies to `media/pmax/`. Prefer sources
+resizes, and writes the prepared copies to `--prepared-dir`, `$W/media/pmax/` below. Prefer sources
 that already match the ratio so the crop doesn't cut the product. Text must
 not use ALL CAPS, repeated punctuation, or claims the landing page can't
 back. Without a video, Google auto-generates one from the images.
 
 ### 3. Write the Spec
-`$A spec-template > media/pmax/spec.json`, then fill it in. Include
+Save the output of `$A spec-template` as `$W/specs/pmax/spec.json`, then fill it in. Include
 `call_to_action` (for example `SHOP_NOW`, `LEARN_MORE`) and keep
 `status` as `PAUSED`.
 
 ### 4. Validate, Then Create
 ```bash
-$A create --customer ID --spec media/pmax/spec.json --dry-run
-$A create --customer ID --spec media/pmax/spec.json
+$A create --customer ID --spec $W/specs/pmax/spec.json --prepared-dir $W/media/pmax --dry-run
+$A create --customer ID --spec $W/specs/pmax/spec.json --prepared-dir $W/media/pmax
 ```
 * The dry run checks counts and lengths locally, then sends the whole
   request with validate-only so Google reports policy or format errors

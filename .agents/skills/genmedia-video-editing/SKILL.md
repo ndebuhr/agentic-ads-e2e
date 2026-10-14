@@ -73,11 +73,18 @@ normalize loudness, reframe per placement, overlay logo/CTA.
   directly.
 
 ### 5. Review & Deliver
-1. Set `output_directory` / `output_local_dir` to the absolute path of the
-   workspace `media/` directory (the servers are not started with a fixed
-   `cwd`) so files land locally as well as in the bucket.
+1. Keep finals in `$W/media/`. If `$W` is a local folder, set
+   `output_directory` / `output_local_dir` to its absolute `media/` path (the
+   servers are not started with a fixed `cwd`) so files land there as well as
+   in the bucket. If `$W` is a `gs://` path, copy the finals from the genmedia
+   bucket into `$W/media/` (`gcloud storage cp SRC $W/media/`).
+
+   `$W` is the project's workspace for specs and media: a Cloud Storage path such as
+   `gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+   The scripts read and write `gs://` paths directly; to save a command's output to
+   one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
 2. Verify duration, resolution, and audio with `ffmpeg_get_media_info`.
-3. Link deliverables as `[name.mp4](file:///absolute/path/media/name.mp4)`
+3. Link deliverables (a `file:///absolute/path/...` link for a local file, or the `gs://` path)
    and suggest placements (16:9 YouTube/PMax, 9:16 Shorts, 1:1 feed) with
    paired headlines.
 
@@ -86,4 +93,4 @@ normalize loudness, reframe per placement, overlay logo/CTA.
   with lite and `num_videos: 1`, then re-render finals.
 * Veo errors surface only after the job completes, so fix inputs before
   calling rather than retrying.
-* Keep generated MP4s in `media/` and the bucket, not in git.
+* Keep generated MP4s in `$W/media/` and the bucket, not in git.

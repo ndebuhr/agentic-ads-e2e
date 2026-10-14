@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["google-ads>=32,<33"]
+# dependencies = ["google-ads>=32,<33", "fsspec>=2024.6", "gcsfs>=2024.6"]
 # ///
 """Search campaigns, ad groups, and keywords (write path). Auth: ~/google-ads.yaml (OAuth).
 
@@ -28,6 +28,12 @@ import argparse, json, os, re, sys
 from datetime import date
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
+
+
+def open_path(path, mode="r"):
+    """Opens a local path or a gs:// URI."""
+    import fsspec
+    return fsspec.open(path, mode)
 
 def load_client(config):
     path = config or os.path.expanduser("~/google-ads.yaml")
@@ -245,7 +251,7 @@ def campaign_neg_op(client, camp_rn, raw):
     return op
 
 def cmd_create(client, a):
-    spec = json.load(open(a.spec)); validate(spec)
+    spec = json.load(open_path(a.spec).open()); validate(spec)
     cust, E = a.customer, client.enums
     ga = client.get_service("GoogleAdsService")
     budget_rn = ga.campaign_budget_path(cust, -1)

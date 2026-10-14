@@ -11,7 +11,12 @@ description: >-
 
 This skill provides an automated quality assurance and broadcast compliance pipeline for commercial video ads. It verifies technical encoding specs, audio loudness, streaming readiness, and visual layout before ad creative is published to ad platforms or delivered to clients.
 
-Outputs go to `media/`.
+Outputs go to `$W/media/`.
+
+`$W` is the project's workspace for specs and media: a Cloud Storage path such as
+`gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+The scripts read and write `gs://` paths directly; to save a command's output to
+one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
 
 ```bash
 Q=.agents/skills/ad-video-qa/scripts/qa_video_ad.py
@@ -46,7 +51,7 @@ Q=.agents/skills/ad-video-qa/scripts/qa_video_ad.py
 Audit any video ad against general digital ad standards and generate a visual contact sheet:
 
 ```bash
-uv run $Q --video media/example-ad-1080p.mp4
+uv run $Q --video $W/media/example-ad-1080p.mp4
 ```
 
 ### 2. Platform-Specific Compliance
@@ -54,27 +59,27 @@ Validate against strict platform guidelines for YouTube, Meta, or TikTok:
 
 ```bash
 # Audit against YouTube & Google Ads specs:
-uv run $Q --video media/ad-1080p.mp4 --platform youtube
+uv run $Q --video $W/media/ad-1080p.mp4 --platform youtube
 
 # Audit against Meta (Instagram/Facebook) specs:
-uv run $Q --video media/ad-square-1x1.mp4 --platform meta
+uv run $Q --video $W/media/ad-square-1x1.mp4 --platform meta
 
 # Audit against TikTok (Vertical 9:16) specs:
-uv run $Q --video media/ad-vertical-9x16.mp4 --platform tiktok
+uv run $Q --video $W/media/ad-vertical-9x16.mp4 --platform tiktok
 ```
 
 ### 3. Auto-Fix Streaming with FastStart
 If an MP4 was rendered without `+faststart` (moov atom at EOF), pass `--fix-faststart` to relocate it without re-encoding video or audio:
 
 ```bash
-uv run $Q --video media/ad-master.mp4 --fix-faststart
+uv run $Q --video $W/media/ad-master.mp4 --fix-faststart
 ```
 
 ### 4. Batch Audit & JSON Output
 Audit all deliverables in a folder and return machine-readable JSON for CI/CD or agent pipelines:
 
 ```bash
-uv run $Q --video media/*.mp4 --json > media/qa_report.json
+uv run $Q --video $W/media/ad-1080p.mp4 $W/media/ad-square-1x1.mp4 --json  # save the output as $W/media/qa_report.json
 ```
 
 ---

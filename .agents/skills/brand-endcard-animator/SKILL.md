@@ -12,7 +12,12 @@ This skill provides a motion graphic pipeline for generating animated brand end-
 and logo pop-ups. It solves the contrast and legibility problem when placing brand
 logos over dynamic generative video footage.
 
-Outputs go to `media/`.
+Outputs go to `$W/media/`.
+
+`$W` is the project's workspace for specs and media: a Cloud Storage path such as
+`gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+The scripts read and write `gs://` paths directly; to save a command's output to
+one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
 
 ```bash
 E=.agents/skills/brand-endcard-animator/scripts/animate_endcard.py
@@ -26,13 +31,13 @@ a commercial spot) using spring physics easing (`scale = 1 + c3*(p-1)^3 + c1*(p-
 
 ```bash
 uv run $E \
-  --logo brand_assets/logo-white-1x1-transparent.png \
-  --bg-video media/scene4_product.mp4 \
+  --logo $W/brand_assets/logo-white-1x1-transparent.png \
+  --bg-video $W/media/scene4_product.mp4 \
   --backing-color "#1c2938" \
   --size 490 \
   --start-time 0.83 \
   --anim-duration 0.50 \
-  --out media/scene4_animated_endcard.mp4
+  --out $W/media/scene4_animated_endcard.mp4
 ```
 
 ### 2. Generate Static High-Contrast Medallion
@@ -41,10 +46,10 @@ for use across ads or print assets:
 
 ```bash
 uv run $E \
-  --logo brand_assets/logo-white-1x1-transparent.png \
+  --logo $W/brand_assets/logo-white-1x1-transparent.png \
   --make-badge \
   --backing-color "#1c2938" \
-  --out media/brand_medallion.png
+  --out $W/media/brand_medallion.png
 ```
 
 ## Best Practices & Guidelines

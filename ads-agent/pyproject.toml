@@ -5,6 +5,8 @@ description = "ADK agent that runs the .agents/skills Google Ads and ad creative
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "fsspec>=2024.6",
+    "gcsfs>=2024.6",
     "google-adk[a2a,mcp]>=2.11.0",
     "google-ads>=32,<33",
     "google-cloud-modelarmor>=0.7.2",

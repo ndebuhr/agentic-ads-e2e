@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["google-ads>=32,<33", "pillow>=10"]
+# dependencies = ["google-ads>=32,<33", "pillow>=10", "fsspec>=2024.6", "gcsfs>=2024.6"]
 # ///
 """Performance Max asset groups (write path). Auth: ~/google-ads.yaml (OAuth).
 
@@ -22,6 +22,18 @@ mutate request using temporary IDs.
 import argparse, io, json, os, re, sys
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
+
+
+def open_path(path, mode="r"):
+    """Opens a local path or a gs:// URI."""
+    import fsspec
+    return fsspec.open(path, mode)
+
+
+def path_exists(path):
+    import fsspec
+    fs, p = fsspec.core.url_to_fs(path)
+    return fs.exists(p)
 
 def load_client(config):
     path = config or os.path.expanduser("~/google-ads.yaml")
@@ -77,14 +89,16 @@ def validate(spec):
         paths = imgs.get(k) or []
         if not lo <= len(paths) <= hi: errs.append(f"images.{k}: need {lo}-{hi} files, got {len(paths)}")
         for p in paths:
-            if not os.path.exists(p): errs.append(f"images.{k}: file not found: {p}")
+            if not path_exists(p): errs.append(f"images.{k}: file not found: {p}")
     if len(spec.get("youtube_video_ids") or []) > 5: errs.append("youtube_video_ids: max 5")
     if errs:
         print("spec invalid:\n  " + "\n  ".join(errs), file=sys.stderr); sys.exit(2)
 
 def prepare_image(path, size, out_dir, tag):
     """Center-crop to the target aspect, resize, save as JPEG (PNG for logos) under 5MB."""
-    im = Image.open(path)
+    with open_path(path, "rb") as f:
+        im = Image.open(f)
+        im.load()
     if im.mode in ("RGBA", "LA", "P") and tag != "logo":
         im = im.convert("RGB")
     elif im.mode == "P":
@@ -96,16 +110,18 @@ def prepare_image(path, size, out_dir, tag):
     else:
         nh = int(w / target); im = im.crop((0, (h - nh) // 2, w, (h - nh) // 2 + nh))
     im = im.resize(size, Image.LANCZOS)
-    os.makedirs(out_dir, exist_ok=True)
+    if not out_dir.startswith("gs://"):
+        os.makedirs(out_dir, exist_ok=True)
     base = os.path.splitext(os.path.basename(path))[0]
     fmt, ext = ("PNG", "png") if tag == "logo" and im.mode == "RGBA" else ("JPEG", "jpg")
-    out = os.path.join(out_dir, f"{base}-{tag}-{tw}x{th}.{ext}")
+    out = f"{out_dir.rstrip('/')}/{base}-{tag}-{tw}x{th}.{ext}"
     q = 92
     while True:
         buf = io.BytesIO(); im.save(buf, fmt, **({"quality": q, "optimize": True} if fmt == "JPEG" else {"optimize": True}))
         if buf.tell() <= MAX_IMAGE_BYTES or fmt == "PNG" or q <= 50: break
         q -= 10
-    open(out, "wb").write(buf.getvalue())
+    with open_path(out, "wb") as f:
+        f.write(buf.getvalue())
     return out, buf.getvalue()
 
 # ---------- commands ----------
@@ -154,7 +170,7 @@ def cmd_assets(client, a):
                        "video": r.asset.youtube_video_asset.youtube_video_id or None} for r in rows], indent=2))
 
 def cmd_create(client, a):
-    spec = json.load(open(a.spec)); validate(spec)
+    spec = json.load(open_path(a.spec).open()); validate(spec)
     cust = a.customer; cid = digits(str(spec["campaign_id"]))
     camp = query(client, cust, f"""
         SELECT campaign.id, campaign.name, campaign.advertising_channel_type, campaign.brand_guidelines_enabled

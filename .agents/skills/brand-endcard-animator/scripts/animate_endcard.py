@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["Pillow>=10.0.0", "numpy>=1.24.0"]
+# dependencies = ["Pillow>=10.0.0", "numpy>=1.24.0", "fsspec>=2024.6", "gcsfs>=2024.6"]
 # ///
 """Animated brand end-card and logo pop-up motion graphic generator.
 
@@ -29,12 +29,65 @@ Usage:
 
 import argparse
 import math
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
+
+
+# ---------- Cloud Storage staging ----------
+# Paths may be gs:// URIs. gs:// inputs are copied to a temp folder first, and
+# gs:// outputs are written there, then uploaded by upload_outputs(), which
+# prints {"uploaded": {local_path: gs_uri}} on stderr.
+_STAGE = {"dir": None, "uploads": []}
+
+
+def _stage_dir():
+    import atexit, shutil, tempfile
+    if _STAGE["dir"] is None:
+        _STAGE["dir"] = tempfile.mkdtemp(prefix="gcs_stage_")
+        atexit.register(shutil.rmtree, _STAGE["dir"], True)
+    return _STAGE["dir"]
+
+
+def stage_in(path):
+    """Returns a local path for an input, downloading it first if it's a gs:// URI."""
+    if not path or not str(path).startswith("gs://"):
+        return path
+    import fsspec
+    local = os.path.join(_stage_dir(), "in", path[len("gs://"):])
+    os.makedirs(os.path.dirname(local), exist_ok=True)
+    fsspec.filesystem("gcs").get(path, local)
+    return local
+
+
+def stage_out(path, is_dir=False):
+    """Returns a local path to write in place of a gs:// output; upload_outputs() copies it there."""
+    if not path or not str(path).startswith("gs://"):
+        return path
+    local = os.path.join(_stage_dir(), "out", path[len("gs://"):].rstrip("/"))
+    os.makedirs(local if is_dir else os.path.dirname(local), exist_ok=True)
+    _STAGE["uploads"].append((local, path, is_dir))
+    return local
+
+
+def upload_outputs():
+    """Uploads everything written to staged gs:// outputs."""
+    if not _STAGE["uploads"]:
+        return
+    import fsspec
+    fs, done = fsspec.filesystem("gcs"), {}
+    for local, remote, is_dir in _STAGE["uploads"]:
+        files = ([os.path.join(r, f) for r, _, fs_ in os.walk(local) for f in fs_] if is_dir
+                 else [local] if os.path.exists(local) else [])
+        for src in files:
+            dst = remote.rstrip("/") + "/" + os.path.relpath(src, local) if is_dir else remote
+            fs.put(src, dst)
+            done[src] = dst
+    print(json.dumps({"uploaded": done}), file=sys.stderr)
 
 def create_contrast_medallion(logo_img, backing_color_hex="#1c2938", padding=20):
     """Mount a logo onto a clean circular brand backing disc with soft drop shadow."""
@@ -100,6 +153,8 @@ def main():
     args = parser.parse_args()
     
     # 1. Load and clean logo
+    args.logo, args.bg_video = stage_in(args.logo), stage_in(args.bg_video)
+    args.out = stage_out(args.out)
     raw_logo = Image.open(args.logo).convert('RGBA')
     # If logo has solid black background, strip it to transparent
     data = np.array(raw_logo)
@@ -115,6 +170,7 @@ def main():
         os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
         badge.save(args.out)
         print(f"Saved brand contrast medallion to {args.out}")
+        upload_outputs()
         return
 
     if not args.bg_video:
@@ -178,6 +234,7 @@ def main():
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"Successfully generated animated endcard at {args.out}")
+    upload_outputs()
 
 if __name__ == "__main__":
     main()

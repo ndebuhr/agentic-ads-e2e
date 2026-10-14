@@ -7,6 +7,9 @@ from google.genai import types
 
 SKILLS_DIR = Path(os.environ.get("ADS_AGENT_SKILLS_DIR", Path(__file__).resolve().parents[2] / ".agents" / "skills"))
 WORKSPACE = Path(os.path.expanduser(os.environ.get("ADS_AGENT_WORKSPACE", "."))).resolve()
+# Cloud Storage location for specs, media, brand assets, and uploads ($W in the skills), e.g. gs://bucket.
+# Unset to keep everything in the local workspace.
+STORAGE = (os.environ.get("ADS_AGENT_STORAGE") or "").rstrip("/") or None
 MODEL = os.environ.get("ADS_AGENT_MODEL", "gemini-3.8-flash")
 GOOGLE_ADS_CONFIG = os.path.expanduser(os.environ.get("GOOGLE_ADS_CONFIGURATION_FILE_PATH", "~/google-ads.yaml"))
 GENMEDIA_BIN_DIR = Path(os.path.expanduser(os.environ.get("GENMEDIA_BIN_DIR", "~/.local/bin")))

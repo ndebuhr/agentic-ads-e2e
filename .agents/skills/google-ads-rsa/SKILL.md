@@ -22,6 +22,11 @@ each work alone. All writes go through `scripts/rsa.py`, authenticated by
 R=.agents/skills/google-ads-rsa/scripts/rsa.py
 ```
 
+`$W` is the project's workspace for specs and media: a Cloud Storage path such as
+`gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+The scripts read and write `gs://` paths directly; to save a command's output to
+one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
+
 Run the script directly (`$R ...`), not with `python3 $R`: its shebang runs
 `uv`, which installs the `google-ads` dependency. Start with
 `.agents/skills/google-ads-auth/scripts/setup_oauth.py --check`, which also
@@ -74,9 +79,9 @@ that fails:
    so leave them out otherwise.
 
 ### 4. Lint
-`$R spec-template > media/search/rsa.json`, fill in the ads, then:
+Save the output of `$R spec-template` as `$W/specs/search/rsa.json`, fill in the ads, then:
 ```bash
-$R lint --spec media/search/rsa.json --customer ID --brand "Brand Name"
+$R lint --spec $W/specs/search/rsa.json --customer ID --brand "Brand Name"
 ```
 * `errors` are hard limits Google will reject. `warnings` are what drags Ad
   Strength down: fewer than 10 headlines, near-duplicate assets, pins, and
@@ -95,8 +100,8 @@ $R lint --spec media/search/rsa.json --customer ID --brand "Brand Name"
 
 ### 5. Validate, Then Create
 ```bash
-$R create --customer ID --spec media/search/rsa.json --dry-run
-$R create --customer ID --spec media/search/rsa.json
+$R create --customer ID --spec $W/specs/search/rsa.json --dry-run
+$R create --customer ID --spec $W/specs/search/rsa.json
 ```
 * `create` re-runs lint and refuses to send anything if lint finds errors.
   The dry run then has Google check text, policy, and URLs without creating

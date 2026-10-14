@@ -62,11 +62,15 @@ Invoke `call_mcp_tool` on `geap-generate`:
 ### 4. Decode and Save the Image File
 1. Extract the base64-encoded image payload from the response:
    `response.candidates[0].content.parts[0].inlineData.data`
-2. Decode the base64 string and save it as a PNG/JPEG file in the `media/` directory (create the directory if it does not already exist).
+2. Decode the base64 string and save it as a PNG/JPEG file under `$W/media/` (for a local folder, create it if it doesn't exist).
+
+   `$W` is the project's workspace for specs and media: a Cloud Storage path such as
+   `gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+   The scripts read and write `gs://` paths directly; to save a command's output to
+   one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
 3. Confirm the file size and verify that the image is non-empty.
 
 ### 5. Review & Deliver Asset
 1. Inspect the resulting image file using `view_file` to verify image fidelity, branding consistency, and composition.
-2. Embed or link the saved image in your response using clickable GitHub-style markdown links:
-   `[image_name.png](file:///absolute/path/to/media/image_name.png)`
+2. Link the saved image in your response: a clickable `file:///absolute/path/...` Markdown link for a local file, or its `gs://` path.
 3. Provide recommended ad copy or headlines that pair effectively with the visual.

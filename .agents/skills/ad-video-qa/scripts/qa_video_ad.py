@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["Pillow>=10.0.0"]
+# dependencies = ["Pillow>=10.0.0", "fsspec>=2024.6", "gcsfs>=2024.6"]
 # ///
 """Ad Video QA & Broadcast Compliance Validator.
 
@@ -84,6 +84,58 @@ PLATFORM_TARGETS = {
         "max_size_mb": 1000.0,
     }
 }
+
+
+# ---------- Cloud Storage staging ----------
+# Paths may be gs:// URIs. gs:// inputs are copied to a temp folder first, and
+# gs:// outputs are written there, then uploaded by upload_outputs(), which
+# prints {"uploaded": {local_path: gs_uri}} on stderr.
+_STAGE = {"dir": None, "uploads": []}
+
+
+def _stage_dir():
+    import atexit, shutil, tempfile
+    if _STAGE["dir"] is None:
+        _STAGE["dir"] = tempfile.mkdtemp(prefix="gcs_stage_")
+        atexit.register(shutil.rmtree, _STAGE["dir"], True)
+    return _STAGE["dir"]
+
+
+def stage_in(path):
+    """Returns a local path for an input, downloading it first if it's a gs:// URI."""
+    if not path or not str(path).startswith("gs://"):
+        return path
+    import fsspec
+    local = os.path.join(_stage_dir(), "in", path[len("gs://"):])
+    os.makedirs(os.path.dirname(local), exist_ok=True)
+    fsspec.filesystem("gcs").get(path, local)
+    return local
+
+
+def stage_out(path, is_dir=False):
+    """Returns a local path to write in place of a gs:// output; upload_outputs() copies it there."""
+    if not path or not str(path).startswith("gs://"):
+        return path
+    local = os.path.join(_stage_dir(), "out", path[len("gs://"):].rstrip("/"))
+    os.makedirs(local if is_dir else os.path.dirname(local), exist_ok=True)
+    _STAGE["uploads"].append((local, path, is_dir))
+    return local
+
+
+def upload_outputs():
+    """Uploads everything written to staged gs:// outputs."""
+    if not _STAGE["uploads"]:
+        return
+    import fsspec
+    fs, done = fsspec.filesystem("gcs"), {}
+    for local, remote, is_dir in _STAGE["uploads"]:
+        files = ([os.path.join(r, f) for r, _, fs_ in os.walk(local) for f in fs_] if is_dir
+                 else [local] if os.path.exists(local) else [])
+        for src in files:
+            dst = remote.rstrip("/") + "/" + os.path.relpath(src, local) if is_dir else remote
+            fs.put(src, dst)
+            done[src] = dst
+    print(json.dumps({"uploaded": done}), file=sys.stderr)
 
 def run_cmd(cmd: List[str]) -> Tuple[int, str, str]:
     """Execute subprocess and return returncode, stdout, stderr."""
@@ -498,19 +550,23 @@ def main():
     parser.add_argument("--fix-faststart", action="store_true", help="Automatically relocate moov atom to beginning of file if missing")
     
     args = parser.parse_args()
+    args.out_dir = stage_out(args.out_dir, is_dir=True)
     os.makedirs(args.out_dir, exist_ok=True)
     
     results = []
     has_failure = False
     
-    for vpath in args.video:
+    for source in args.video:
+        vpath = stage_in(source)
         if args.fix_faststart and not check_faststart(vpath):
             tmp_fixed = vpath + ".fixed.mp4"
             cmd = ['ffmpeg', '-y', '-i', vpath, '-c', 'copy', '-movflags', '+faststart', tmp_fixed]
             ret, _, _ = run_cmd(cmd)
             if ret == 0 and os.path.exists(tmp_fixed):
                 os.replace(tmp_fixed, vpath)
-                print(f"[FIXED] FastStart moov atom applied to {vpath}")
+                print(f"[FIXED] FastStart moov atom applied to {source}")
+                if source != vpath:  # A gs:// input: upload the fixed copy back over it.
+                    _STAGE["uploads"].append((vpath, source, False))
                 
         try:
             res = audit_video(vpath, platform=args.platform, num_scenes=args.scenes, out_dir=args.out_dir)
@@ -526,6 +582,7 @@ def main():
     if args.json:
         print(json.dumps(results if len(results) > 1 else results[0], indent=2))
         
+    upload_outputs()
     sys.exit(1 if has_failure else 0)
 
 if __name__ == "__main__":

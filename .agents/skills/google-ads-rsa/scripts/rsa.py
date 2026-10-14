@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["google-ads>=32,<33"]
+# dependencies = ["google-ads>=32,<33", "fsspec>=2024.6", "gcsfs>=2024.6"]
 # ///
 """Responsive search ads (write path). Auth: ~/google-ads.yaml (OAuth).
 
@@ -23,6 +23,12 @@ reports which ones no headline covers. create runs lint first and refuses on err
 import argparse, json, os, re, sys
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
+
+
+def open_path(path, mode="r"):
+    """Opens a local path or a gs:// URI."""
+    import fsspec
+    return fsspec.open(path, mode)
 
 def load_client(config):
     path = config or os.path.expanduser("~/google-ads.yaml")
@@ -200,7 +206,7 @@ def cmd_spec_template(client, a):
                          "Every box is packed by hand and ready to give."]}]}, indent=2))
 
 def cmd_lint(client, a):
-    spec = json.load(open(a.spec))
+    spec = json.load(open_path(a.spec).open())
     report, n = run_lint(spec, client, a.customer, a.brand)
     print(json.dumps(report, indent=2))
     if n: sys.exit(2)
@@ -225,7 +231,7 @@ def build_ops(client, cust, spec):
     return ops
 
 def cmd_create(client, a):
-    spec = json.load(open(a.spec))
+    spec = json.load(open_path(a.spec).open())
     report, n = run_lint(spec, client, a.customer, a.brand, adding=True)
     if n:
         print(json.dumps(report, indent=2)); print(f"{n} lint error(s); nothing sent.", file=sys.stderr); sys.exit(2)

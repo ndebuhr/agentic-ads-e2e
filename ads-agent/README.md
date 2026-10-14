@@ -24,6 +24,7 @@ The skills are loaded unchanged with ADK's `SkillToolset`. Their workstation-spe
 | `view_file` on an image, video, audio clip, or PDF | `view_file`, which shows the file to the model (up to 15 MB; local or `gs://`) |
 | Writing specs, reading pages and landing pages | `write_file`, `read_file`, `list_files`, `load_web_page` |
 | A `grep` one-liner, or searching a file too large to read (such as the geo targets CSV) | `search_file`, which returns the matching lines |
+| `gcloud storage cp SOURCE DESTINATION`, or saving output to a `gs://` path | `copy_file`, or `write_file` |
 | google-ads-rsa steps 2 to 4 (generate, critique, lint) | `rsa_copywriter`, a workflow described below |
 | Research: competitors, search terms, Google Ads policies (`ads_ops` only) | `google_search_agent`, Gemini's Google Search grounding, which ADK wraps in a search-only sub-agent so it can sit beside other tools. Findings guide strategy; ad claims still come only from the landing page. Each search is a separately billed grounded request |
 
@@ -32,6 +33,10 @@ ADK's built-in `run_skill_script` is turned off. It copies a script into a temp 
 ### RSA copywriting loop
 
 `rsa_copywriter` (`ads_agent/rsa_workflow.py`) runs the RSA skill's draft and review as an ADK `Workflow` graph instead of leaving the loop to the model: a writer drafts the spec, the real `rsa.py lint` checks it, and a separate critic reviews it against the skill's checklist. It repeats until the critic passes a spec with no lint errors, for up to 3 rounds, then returns the spec path, open issues, and the lint report. It never creates ads; `ads_ops` does that with a dry run and your confirmation.
+
+### Storage
+
+Set `ADS_AGENT_STORAGE` (for example `gs://your-workspace-bucket`) to keep specs, media, brand assets, and uploads in Cloud Storage. It's `$W` in the skills, where the scripts accept `gs://` paths directly, so Claude Code, Antigravity, and this agent share the same files. The file tools take either a `gs://` path inside that bucket or a path relative to the local workspace (the site and the skills), and `copy_file` brings finished genmedia output from its own bucket into `$W/media/`. With it set, the tools refuse to write new files locally, so nothing is saved in two places. Unset, everything stays in the local workspace.
 
 ### Files in the chat
 

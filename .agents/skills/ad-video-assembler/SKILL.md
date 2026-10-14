@@ -12,7 +12,12 @@ This skill provides a battle-tested pipeline for assembling complete commercial 
 from individual scene clips (e.g. from Veo or runway), separate voiceover lines
 (e.g. from ElevenLabs), and instrumental music beds.
 
-Outputs go to `media/`.
+Outputs go to `$W/media/`.
+
+`$W` is the project's workspace for specs and media: a Cloud Storage path such as
+`gs://my-bucket`, or a local folder such as `.`. The project's `AGENTS.md` says which.
+The scripts read and write `gs://` paths directly; to save a command's output to
+one from a shell, pipe it: `... | gcloud storage cp - $W/specs/example.json`.
 
 ```bash
 A=.agents/skills/ad-video-assembler/scripts/assemble_ad.py
@@ -27,15 +32,15 @@ lines with scene onsets, ducks background music under vocals, and exports both 7
 
 ```bash
 $A \
-  --scenes media/scene1.mp4 media/scene2.mp4 media/scene3.mp4 media/scene4.mp4 \
+  --scenes $W/media/scene1.mp4 $W/media/scene2.mp4 $W/media/scene3.mp4 $W/media/scene4.mp4 \
   --durations 4.0 4.0 4.0 4.0 \
-  --vo media/vo1.mp3 media/vo2.mp3 media/vo3.mp3 media/vo4.mp3 \
+  --vo $W/media/vo1.mp3 $W/media/vo2.mp3 $W/media/vo3.mp3 $W/media/vo4.mp3 \
   --vo-delays 350 4100 8250 12200 \
-  --music media/folk_instrumental.mp3 \
+  --music $W/media/folk_instrumental.mp3 \
   --music-vol 0.20 \
   --vo-vol 1.15 \
   --name example-ad \
-  --out-dir media/
+  --out-dir $W/media/
 ```
 
 ### 2. Lossless Audio Stream Replacement
@@ -45,9 +50,9 @@ losslessly in under one second with zero generational video compression loss:
 
 ```bash
 $A --replace-audio \
-  --video media/example-ad-1080p.mp4 \
-  --audio media/new_audio_mix.wav \
-  --out media/example-ad-1080p.mp4
+  --video $W/media/example-ad-1080p.mp4 \
+  --audio $W/media/new_audio_mix.wav \
+  --out $W/media/example-ad-1080p.mp4
 ```
 
 ### 3. Timing & Pacing Guidelines

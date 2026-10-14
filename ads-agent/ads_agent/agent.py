@@ -19,7 +19,7 @@ from google.adk.tools.load_artifacts_tool import load_artifacts_tool
 from google.adk.tools.load_web_page import load_web_page
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
-from .config import MODEL_ARMOR_TEMPLATE, SKILLS_DIR, WORKSPACE, model
+from .config import MODEL_ARMOR_TEMPLATE, SKILLS_DIR, STORAGE, WORKSPACE, model
 from .genmedia import genmedia_toolsets
 from .google_ads import customers_list_accessible_customers, search_search
 from .guardrails import AdsWriteGuardrails
@@ -27,8 +27,8 @@ from .memory import remember
 from .model_armor import model_armor_plugins
 from .rsa_workflow import rsa_copywriter
 from .skill_scripts import run_skill_script_tool
-from .workspace import (CapToolResults, DropOldToolMedia, generate_image_tool, list_files, read_file, save_upload,
-                        search_file, share_file, view_file, write_file)
+from .workspace import (CapToolResults, DropOldToolMedia, copy_file, generate_image_tool, list_files, read_file,
+                        save_upload, search_file, share_file, view_file, write_file)
 
 ADS_SKILL_PREFIX = "google-ads-"
 
@@ -36,8 +36,10 @@ TRANSLATIONS = """\
 - A shell command running a skill script (`$S create ...`, `$R lint ...`, or a
   path under `.agents/skills/<skill>/scripts/`) -> `run_skill_script` with the
   skill name, the script file name, and the arguments as a list. Shell
-  redirects like `> media/search/campaign.json` -> run without the redirect,
-  then `write_file` with the output.
+  redirects like `> $W/specs/search/campaign.json`, or a pipe into
+  `gcloud storage cp - $W/...` -> run without it, then `write_file` with the
+  output.
+- `gcloud storage cp SOURCE DESTINATION` -> `copy_file`.
 - Creating or editing a file -> `write_file`; reading one -> `read_file` or
   `list_files`; reading a landing page -> `load_web_page`.
 - A `grep` one-liner (`grep -i 'PATTERN' FILE`) -> `search_file` with the
@@ -50,9 +52,15 @@ TRANSLATIONS = """\
 - A file the user uploads shows as [Uploaded Artifact: "name"]: look at it
   with `load_artifacts`, and keep it with `save_upload`."""
 
+STORAGE_RULE = (
+    f"- `$W` in the skills is {STORAGE}: keep specs, media, brand assets, and uploads there, as gs:// paths.\n"
+    "  Relative paths are the local workspace (the site and the skills); use them only for those."
+    if STORAGE else "- `$W` in the skills is `.`, the local workspace.")
+
 RULES = f"""\
 - Make no claim in ad copy or creative that the landing page does not back up.
 - Paths are relative to the workspace, {WORKSPACE}.
+{STORAGE_RULE}
 - When the request belongs to the other specialist, transfer to it."""
 
 MEMORY = """\
@@ -168,7 +176,7 @@ def _skill_tools(group: list) -> list:
     ]
 
 
-FILE_TOOLS = [list_files, read_file, search_file, write_file, view_file, share_file, save_upload, load_artifacts_tool, load_web_page]
+FILE_TOOLS = [list_files, read_file, search_file, write_file, copy_file, view_file, share_file, save_upload, load_artifacts_tool, load_web_page]
 MEMORY_TOOLS = [PreloadMemoryTool(), remember]
 
 ads_ops = Agent(

@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["fsspec>=2024.6", "gcsfs>=2024.6"]
+# ///
 """Multi-scene video ad assembler with voiceover, music bed, ducking, and dual-resolution packaging.
 
 Usage:
@@ -24,6 +28,58 @@ import json
 import os
 import subprocess
 import sys
+
+
+# ---------- Cloud Storage staging ----------
+# Paths may be gs:// URIs. gs:// inputs are copied to a temp folder first, and
+# gs:// outputs are written there, then uploaded by upload_outputs(), which
+# prints {"uploaded": {local_path: gs_uri}} on stderr.
+_STAGE = {"dir": None, "uploads": []}
+
+
+def _stage_dir():
+    import atexit, shutil, tempfile
+    if _STAGE["dir"] is None:
+        _STAGE["dir"] = tempfile.mkdtemp(prefix="gcs_stage_")
+        atexit.register(shutil.rmtree, _STAGE["dir"], True)
+    return _STAGE["dir"]
+
+
+def stage_in(path):
+    """Returns a local path for an input, downloading it first if it's a gs:// URI."""
+    if not path or not str(path).startswith("gs://"):
+        return path
+    import fsspec
+    local = os.path.join(_stage_dir(), "in", path[len("gs://"):])
+    os.makedirs(os.path.dirname(local), exist_ok=True)
+    fsspec.filesystem("gcs").get(path, local)
+    return local
+
+
+def stage_out(path, is_dir=False):
+    """Returns a local path to write in place of a gs:// output; upload_outputs() copies it there."""
+    if not path or not str(path).startswith("gs://"):
+        return path
+    local = os.path.join(_stage_dir(), "out", path[len("gs://"):].rstrip("/"))
+    os.makedirs(local if is_dir else os.path.dirname(local), exist_ok=True)
+    _STAGE["uploads"].append((local, path, is_dir))
+    return local
+
+
+def upload_outputs():
+    """Uploads everything written to staged gs:// outputs."""
+    if not _STAGE["uploads"]:
+        return
+    import fsspec
+    fs, done = fsspec.filesystem("gcs"), {}
+    for local, remote, is_dir in _STAGE["uploads"]:
+        files = ([os.path.join(r, f) for r, _, fs_ in os.walk(local) for f in fs_] if is_dir
+                 else [local] if os.path.exists(local) else [])
+        for src in files:
+            dst = remote.rstrip("/") + "/" + os.path.relpath(src, local) if is_dir else remote
+            fs.put(src, dst)
+            done[src] = dst
+    print(json.dumps({"uploaded": done}), file=sys.stderr)
 
 def run_cmd(cmd, check=True):
     p = subprocess.run(cmd, shell=isinstance(cmd, str), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -138,13 +194,16 @@ def main():
     if args.replace_audio:
         if not args.video or not args.audio or not args.out:
             sys.exit("--replace-audio requires --video, --audio, and --out")
-        replace_audio(args.video, args.audio, args.out)
+        replace_audio(stage_in(args.video), stage_in(args.audio), stage_out(args.out))
+        upload_outputs()
         return
 
+    args.out_dir = stage_out(args.out_dir, is_dir=True)
     os.makedirs(args.out_dir, exist_ok=True)
-    scenes = args.scenes or []
+    scenes = [stage_in(s) for s in args.scenes or []]
     durations = args.durations or [4.0] * len(scenes)
-    vo_files = args.vo or []
+    vo_files = [stage_in(v) for v in args.vo or []]
+    args.music = stage_in(args.music)
     vo_delays = args.vo_delays or [int(sum(durations[:i]) * 1000) for i in range(len(vo_files))]
     total_duration = sum(durations)
     
@@ -191,6 +250,7 @@ def main():
     print("\nAssembly Complete!")
     print(f"  • 720p:  {out_720p} ({info_720['video']['width']}x{info_720['video']['height']}, {float(info_720['format']['duration']):.2f}s, {int(info_720['format']['size'])/1024/1024:.1f} MB)")
     print(f"  • 1080p: {out_1080p} ({info_1080['video']['width']}x{info_1080['video']['height']}, {float(info_1080['format']['duration']):.2f}s, {int(info_1080['format']['size'])/1024/1024:.1f} MB)")
+    upload_outputs()
 
 if __name__ == "__main__":
     main()
