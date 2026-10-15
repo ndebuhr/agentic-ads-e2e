@@ -1,25 +1,26 @@
 ---
 name: google-ads-geo-targets
 description: >-
-  Finds Google Ads geo target IDs offline (countries, states, counties, cities,
-  ZIP codes, neighborhoods) in a bundled copy of Google's published list, with
-  no sign-in or API call, and explains target types and location options. Use
-  this skill whenever a campaign needs location IDs, the user names places to
-  target or exclude, or asks about presence versus interest targeting.
+  Finds Google Ads geo target IDs offline (every country, plus US states,
+  counties, cities, ZIP codes, and neighborhoods) in a bundled copy of Google's
+  published list, with no sign-in or API call, and explains target types and
+  location options. Use this skill whenever a campaign needs location IDs, the
+  user names places to target or exclude, or asks about presence versus
+  interest targeting.
 ---
 
 # Google Ads Geo Targets Skill
 
 Campaign specs list locations as numeric criterion IDs, such as `2840` for the
-United States. This skill bundles Google's full geo targets list as a CSV and
-looks IDs up with one-line `grep` searches: no `~/google-ads.yaml`, no API
-quota, no network.
+United States. This skill bundles the US part of Google's geo targets list as a
+CSV, plus a table of every country, and looks IDs up with one-line `grep`
+searches: no `~/google-ads.yaml`, no API quota, no network.
 
 ```bash
 C=.agents/skills/google-ads-geo-targets/assets/geotargets.csv
 ```
 
-The CSV is 23 MB. Never open or load the whole file; search it. Each line is
+The CSV is 5.4 MB. Never open or load the whole file; search it. Each line is
 `"ID","Name","Canonical Name","Parent ID","Country Code","Target Type",Status`.
 
 ## Workflow
@@ -60,6 +61,10 @@ Put the IDs in the campaign spec's `locations`, for example in the
 with Google before anything is written.
 
 ## Notes
+* Places inside other countries aren't in the CSV; country targets are, in
+  `assets/countries.md`. For a non-US region or city, use
+  `search_campaign.py geo-suggest`, or bundle that country's rows too (see
+  "Updating" in `assets/geo-target-constants.md`).
 * US Nielsen DMA regions (metros such as "Denver CO") aren't in the list. Use
   `search_campaign.py geo-suggest` for those, or target the metro's counties.
 * Use `geo-suggest` too when the user wants reach estimates, which the list

@@ -15,6 +15,8 @@ Each entry in the [geo target constants](/geo-target-constants.md) has a `Target
 
 ## Counts in release 2026-08-12
 
+The bundled CSV holds the United States column; the worldwide column is Google's full list.
+
 | Type | Worldwide | United States |
 |---|---|---|
 | Postal Code | 132,824 | 33,371 |

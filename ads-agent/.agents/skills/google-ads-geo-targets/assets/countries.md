@@ -12,7 +12,7 @@ sources:
 ---
 # Countries
 
-Criterion IDs for country targets, from the [geo target constants](/geo-target-constants.md). Code is the ISO 3166-1 alpha-2 country code. The table is the result of `grep '"Country",Active' $C` on [the CSV](/geotargets.csv); regenerate it from that search when the CSV is updated.
+Criterion IDs for country targets, from the [geo target constants](/geo-target-constants.md). Code is the ISO 3166-1 alpha-2 country code. The table is the result of `grep '"Country",Active'` on Google's full geo targets download (the bundled [CSV](/geotargets.csv) holds only US places); regenerate it from that search when the release is updated.
 
 | ID | Name | Code |
 |---|---|---|

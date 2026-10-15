@@ -4,11 +4,15 @@ version = "0.1.0"
 description = "ADK agent that runs the .agents/skills Google Ads and ad creative skills"
 requires-python = ">=3.12"
 dependencies = [
+    "a2a-sdk[http-server]>=1.0,<2",
+    "aiohttp>=3.13.4",
     "beautifulsoup4>=4.15.0",
     "fsspec>=2024.6",
-    "gcsfs>=2024.6",
-    "google-adk[a2a,mcp]>=2.11.0",
+    "gcsfs>=2026.10.0",
+    "google-adk[a2a,bigquery-analytics,gcp,mcp,otel-gcp]>=2.9.2,<3.0.0",
     "google-ads>=32,<33",
+    "google-cloud-aiplatform[agent-engines]>=2.5",
     "google-cloud-modelarmor>=0.7.2",
     "lxml>=6.1.3",
+    "opentelemetry-resourcedetector-gcp<=1.12.0a0",
 ]

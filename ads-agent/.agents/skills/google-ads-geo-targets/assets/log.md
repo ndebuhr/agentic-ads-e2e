@@ -2,6 +2,8 @@
 
 ## 2026-10-14
 
+**Changed** the CSV to the US entries only (64,284 of 273,666; 5.4 MB instead of 22.4 MB), so the skill fits Agent Runtime's 8 MB upload limit. The countries table still covers every country.
+
 **Changed** to a committed copy of the CSV in this folder, searched with `grep` one-liners, instead of a lookup script that downloaded it.
 
 **Created** the bundle from Google's geo targets release 2026-08-12, with the countries and US states tables. Compared with release 2026-07-16: no entries added or removed, 846 canonical names, 176 names, and 15 parent IDs edited.

@@ -1,0 +1,9 @@
+# Build context: this project (ads-agent/).
+**/.git
+**/.venv
+**/__pycache__
+**/.adk
+**/.env
+**/*.tfvars
+**/.terraform
+.agents/scheduled_tasks.lock

@@ -1,6 +1,6 @@
 # ads-agent
 
-An [ADK](https://adk.dev/) agent that runs every skill in `../.agents/skills/` (Google Ads Search, responsive search ads, Performance Max asset groups, experiments, campaign summaries, and the image, video, and audio creative skills) on Gemini through Vertex AI. It is the same skill set that Antigravity uses, behind ADK's web UI.
+An [ADK](https://adk.dev/) agent that runs every skill in `.agents/skills/` (Google Ads Search, responsive search ads, Performance Max asset groups, experiments, campaign summaries, and the image, video, and audio creative skills) on Gemini through Vertex AI. It is the same skill set that Antigravity uses, behind ADK's web UI.
 
 ## How it's organized
 
@@ -69,12 +69,23 @@ When `ADS_AGENT_MODEL_ARMOR_TEMPLATE` is set, [Model Armor](https://cloud.google
 
 A flagged message, reply, or result is replaced with a notice. If Model Armor can't be reached, it blocks instead of letting content through unscreened.
 
-`scripts/setup_model_armor.py` creates the template with every filter at its least sensitive setting: hate speech, harassment, sexually explicit, and dangerous content, plus prompt injection and jailbreak, all at HIGH confidence, and malicious URL detection. Sensitive Data Protection is off.
+Create the template once, with every filter at its least sensitive setting: hate speech, harassment, sexually explicit, and dangerous content, plus prompt injection and jailbreak, all at HIGH confidence, and malicious URL detection. Sensitive Data Protection is off.
 
 ```bash
-gcloud services enable modelarmor.googleapis.com --project YOUR_PROJECT
-uv run scripts/setup_model_armor.py --project YOUR_PROJECT   # prints the .env line
+gcloud services enable modelarmor.googleapis.com --project=YOUR_PROJECT
+gcloud config set api_endpoint_overrides/modelarmor https://modelarmor.us-central1.rep.googleapis.com/
+gcloud model-armor templates create ads-agent --location=us-central1 --project=YOUR_PROJECT \
+  --rai-settings-filters='[{"filterType": "HATE_SPEECH", "confidenceLevel": "HIGH"},
+    {"filterType": "HARASSMENT", "confidenceLevel": "HIGH"},
+    {"filterType": "SEXUALLY_EXPLICIT", "confidenceLevel": "HIGH"},
+    {"filterType": "DANGEROUS", "confidenceLevel": "HIGH"}]' \
+  --pi-and-jailbreak-filter-settings-enforcement=enabled \
+  --pi-and-jailbreak-filter-settings-confidence-level=high \
+  --malicious-uri-filter-settings-enforcement=enabled
+gcloud config unset api_endpoint_overrides/modelarmor
 ```
+
+Then set `ADS_AGENT_MODEL_ARMOR_TEMPLATE=projects/YOUR_PROJECT/locations/us-central1/templates/ads-agent` in `.env`.
 
 Setup needs the Model Armor Admin role; running the agent needs Model Armor User (`roles/modelarmor.user`). Model Armor is a classifier, so the Google Ads rules above stay enforced in code.
 
@@ -98,15 +109,15 @@ Prerequisites: [uv](https://docs.astral.sh/uv/), the `gcloud` CLI, and a Google 
    ```
 2. Sign in for Google Ads (writes `~/google-ads.yaml`):
    ```bash
-   ../.agents/skills/google-ads-auth/scripts/setup_oauth.py
+   .agents/skills/google-ads-auth/scripts/setup_oauth.py
    ```
 3. Configure the agent:
    ```bash
-   cp .env.example .env   # set GOOGLE_CLOUD_PROJECT and ADS_AGENT_WORKSPACE
+   cp .env.example .env   # set GOOGLE_CLOUD_PROJECT, ADS_AGENT_STORAGE, and the rest
    uv sync
    ```
-   `ADS_AGENT_WORKSPACE` is the directory the skills read and write (`media/`, `brand_assets/`, specs), usually the repo that holds this one as a submodule.
-4. Optional: install the genmedia MCP servers with `../.agents/skills/genmedia-video-editing/scripts/setup.sh` and set `GENMEDIA_BUCKET`. Without it, the agent runs without the video tools.
+   `.env` is also the deployed agent's configuration: `agents-cli deploy` sends its values, so it holds nothing machine-specific.
+4. Optional: install the genmedia MCP servers with `.agents/skills/genmedia-video-editing/scripts/setup.sh` and set `GENMEDIA_BUCKET`. Without it, the agent runs without the video tools.
 
 ## Run
 
@@ -154,6 +165,58 @@ from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
 ads_agent = RemoteA2aAgent(name="ads_agent", agent_card="http://localhost:8000/a2a/ads_agent/.well-known/agent-card.json")
 ```
+
+## Deploy to Agent Runtime
+
+This is an [agents-cli](https://github.com/google/agents-cli) project (`agents-cli-manifest.yaml`), deployed to [Agent Runtime](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/runtime). The skills live in `.agents/` inside it, so they deploy with the agent; the repository root's `.agents` is a symlink here.
+
+The `Dockerfile` adds what the skills run besides Python: `uv`, `ffmpeg`, the genmedia MCP servers, and every skill script's dependencies, installed at build time so containers start warm and make no package downloads. `ads_agent/fast_api_app.py` (from `agents-cli scaffold enhance`) serves the full `App`, so the plugins apply, over Agent Runtime's runtime contract, A2A, and the ADK API. The image is about 2.5 GB.
+
+1. Build and test it locally:
+   ```bash
+   docker build -t ads-agent .
+   docker run --rm -p 8080:8080 -e PORT=8080 --env-file .env \
+     -v ~/.config/gcloud/application_default_credentials.json:/adc.json:ro \
+     -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json ads-agent
+   ```
+   Call it with `POST /api/reasoning_engine` (`{"class_method": "async_create_session", "input": {"user_id": "u"}}`), then `POST /api/stream_reasoning_engine` (`{"class_method": "async_stream_query", "input": {"user_id": "u", "session_id": "...", "message": "..."}}`).
+2. Check, then deploy. Agent Runtime builds the image from the uploaded project (about 6 MB; `.gcloudignore` keeps `.env`, `.venv`, and `.adk/` out), so there's no registry or image push. The first deploy sets the resources and secrets; later ones keep them:
+   ```bash
+   agents-cli deploy --dry-run --agent-identity --secrets GOOGLE_ADS_YAML=google-ads-yaml \
+     --cpu 4 --memory 8Gi --min-instances 1 --max-instances 3
+   agents-cli deploy --agent-identity --secrets GOOGLE_ADS_YAML=google-ads-yaml \
+     --cpu 4 --memory 8Gi --min-instances 1 --max-instances 3   # first deploy
+   agents-cli deploy                                           # later rollouts
+   ```
+   The environment variables come from `.env`. `GOOGLE_ADS_YAML` names a Secret Manager secret holding a `google-ads.yaml`, which the agent writes to `~/google-ads.yaml` at startup; use one with a service account (`json_key_file_path` and `impersonated_email`), since user refresh tokens expire under Workspace session control. It uploads the working tree, committed or not.
+
+### One-time setup
+
+There's no Terraform: `agents-cli deploy` creates and owns the deployment, and grants its Agent Identity the base roles (Vertex AI User, Service Usage Consumer, Browser, Cloud API Registry Viewer, Log Writer, Monitoring Metric Writer). The rest is a few commands, with `PROJECT` and your buckets and secret:
+
+```bash
+# Before the first deploy: Secret Manager, the google-ads.yaml secret, and read access for the
+# Agent Platform service agent, which fetches the secret when it deploys the agent.
+gcloud services enable secretmanager.googleapis.com --project=PROJECT
+gcloud secrets create google-ads-yaml --project=PROJECT --data-file=google-ads.yaml
+gcloud secrets add-iam-policy-binding google-ads-yaml --project=PROJECT --role=roles/secretmanager.secretAccessor \
+  --member="serviceAccount:service-PROJECT_NUMBER@gcp-sa-aiplatform-re.iam.gserviceaccount.com"
+
+# After the first deploy: the agent's own principal, from the deployment.
+ENGINE=projects/PROJECT/locations/us-central1/reasoningEngines/ENGINE_ID   # as printed by agents-cli deploy
+AGENT=principal://$(curl -sS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://us-central1-aiplatform.googleapis.com/v1beta1/$ENGINE" | jq -r .spec.effectiveIdentity)
+
+gcloud projects add-iam-policy-binding PROJECT --member="$AGENT" --role=roles/modelarmor.user
+gcloud storage buckets add-iam-policy-binding gs://WORKSPACE_BUCKET --member="$AGENT" --role=roles/storage.objectAdmin
+gcloud storage buckets add-iam-policy-binding gs://GENMEDIA_BUCKET --member="$AGENT" --role=roles/storage.objectViewer
+```
+
+If the first deploy reports that it can't read the secret, the error names the account that needs the role.
+
+Chat file previews and uploads stay in memory unless `.env` sets `LOGS_BUCKET_NAME` to a bucket for them. Re-running `agents-cli scaffold enhance` or `scaffold upgrade` adds a `deployment/terraform/` folder back; delete it unless you switch to `agents-cli infra`.
+
+Without the `adk web` UI, use the deployment from the console's playground, Gemini Enterprise, the API, or A2A clients. Steps that need confirmation return to the caller for approval.
 
 ## Limits
 

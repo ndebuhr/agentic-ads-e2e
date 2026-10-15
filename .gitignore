@@ -35,3 +35,7 @@ Thumbs.db
 *.swp
 *.swo
 .adk/
+
+# agents-cli deploy state: this checkout's deployment ID and in-flight operations
+ads-agent/deployment_metadata.json
+ads-agent/deployment_metadata.json.lock
