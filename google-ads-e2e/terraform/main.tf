@@ -19,8 +19,7 @@ locals {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "run.googleapis.com",
-    "googleads.googleapis.com",
-    "orgpolicy.googleapis.com"
+    "googleads.googleapis.com"
   ])
 }
 
@@ -134,23 +133,6 @@ resource "google_cloud_run_v2_service" "google_ads_mcp" {
   ]
 }
 
-# The organization enforces domain restricted sharing, which rejects allUsers.
-# Override it for this project only so the Cloud Run service can be public.
-resource "google_org_policy_policy" "allow_public_members" {
-  name   = "projects/${var.project_id}/policies/iam.allowedPolicyMemberDomains"
-  parent = "projects/${var.project_id}"
-
-  spec {
-    rules {
-      allow_all = "TRUE"
-    }
-  }
-
-  depends_on = [
-    google_project_service.services["orgpolicy.googleapis.com"]
-  ]
-}
-
 # Allow unauthenticated access (FastMCP handles OAuth proxy authentication)
 resource "google_cloud_run_v2_service_iam_member" "invoker" {
   project  = var.project_id
@@ -158,6 +140,4 @@ resource "google_cloud_run_v2_service_iam_member" "invoker" {
   name     = google_cloud_run_v2_service.google_ads_mcp.name
   role     = "roles/run.invoker"
   member   = "allUsers"
-
-  depends_on = [google_org_policy_policy.allow_public_members]
 }
